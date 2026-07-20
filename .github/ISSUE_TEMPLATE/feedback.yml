@@ -1,0 +1,54 @@
+name: 反馈 / 提问
+description: 对「Alpha 研学想法流」提问、提建议或报 bug
+title: "[反馈] "
+labels: ["intake"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈!仓库是公开的,**请勿粘贴敏感数据**。提交后由团队处理。
+  - type: input
+    id: submitter
+    attributes:
+      label: 你的称呼
+      description: 怎么称呼你 / 哪个组(会保留在 issue 里)
+      placeholder: 三组的小林
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 详细描述
+      description: 背景、你观察到什么、期望怎样
+    validations:
+      required: true
+  - type: input
+    id: related_packet
+    attributes:
+      label: 相关想法卡片(可选)
+      description: 卡片链接或标题,如 2026-07-20-lookahead-timeline
+  - type: dropdown
+    id: type
+    attributes:
+      label: 类型
+      options:
+        - 问题反馈
+        - 改进建议
+        - 疑问求解
+        - Bug
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      options:
+        - 低
+        - 中
+        - 高
+      default: 1
+  - type: input
+    id: attachment
+    attributes:
+      label: 附件链接(可选)
+      description: 截图 / 文档的公开链接
