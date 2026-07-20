@@ -5,4 +5,4 @@
 - 想在网页上直接提:打开 <https://alpha.cihua.run/#submit>,填表单即可 —— **无需 GitHub 账号**,系统会自动同步成一条 Issue。
 - 有 GitHub 账号也可以:直接 [新建 Issue](../../issues/new?template=feedback.yml)。
 
-只分享方法与思路,不含最终因子表达式或结果。请勿在工单里粘贴敏感数据。
+请勿在工单里粘贴敏感数据。
