@@ -605,14 +605,21 @@ if (form) {
       var labels = (item.labels || []).filter(function (name) { return name !== 'intake'; })
         .map(function (name) { return '<span class="mini-label">' + escapeHtml(name) + '</span>'; }).join('');
       if (item.milestone) labels += '<span class="mini-label milestone">' + escapeHtml(item.milestone) + '</span>';
-      var receiptLabel = item.receipt && item.receipt.kind === 'comment' ? '回复' : '回执';
-      var receipt = item.receipt && item.receipt.summary
-        ? '<a class="receipt" href="' + escapeHtml(item.receipt.url || item.url) + '" target="_blank" rel="noopener">' + receiptLabel + ':' + escapeHtml(item.receipt.summary) + '</a>'
-        : '';
+      // 回复是这块最有价值的内容,给它独立的答复块而不是挤在一行里截断
+      var reply = '';
+      if (item.receipt && item.receipt.summary) {
+        var isReceipt = item.receipt.kind !== 'comment';
+        reply = '<a class="reply' + (isReceipt ? ' is-receipt' : '') + '" href="'
+          + escapeHtml(item.receipt.url || item.url) + '" target="_blank" rel="noopener">'
+          + '<span class="reply-tag">' + (isReceipt ? '修复回执' : '项目回复') + '</span>'
+          + '<span class="reply-text">' + escapeHtml(item.receipt.summary) + '</span>'
+          + (item.receipt.created_at ? '<time>' + escapeHtml(formatDate(item.receipt.created_at)) + '</time>' : '')
+          + '</a>';
+      }
       var state = item.state === 'closed' ? '已关闭' : '处理中';
-      return '<div class="issue-item">'
+      return '<div class="issue-item' + (reply ? ' has-reply' : '') + '">'
         + '<span class="issue-no">#' + escapeHtml(item.number) + '</span>'
-        + '<span class="issue-main"><strong><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.title) + '</a></strong><span>' + labels + '</span>' + receipt + '</span>'
+        + '<span class="issue-main"><strong><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.title) + '</a></strong><span class="issue-tags">' + labels + '</span>' + reply + '</span>'
         + '<span class="issue-side"><em class="state ' + escapeHtml(item.state) + '">' + state + '</em><time>' + escapeHtml(formatDate(item.created_at)) + '</time></span>'
         + '</div>';
     }).join('');
