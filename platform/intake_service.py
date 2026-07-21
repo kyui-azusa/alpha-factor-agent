@@ -1,14 +1,17 @@
 """工单入口后端(ADR-0002 / CONTEXT: Intake Form)。
 
 同源架构:nginx 提供静态站点并把 `/api/intake` 反代到本服务(127.0.0.1)。
-本服务只处理 POST /api/intake,把一次表单提交用**项目所有者账号**建一条 GitHub Issue:
+本服务处理 POST /api/intake,把一次表单提交用**项目所有者账号**建一条 GitHub Issue:
     submitter → 正文;title → issue 标题;type/priority → labels;related/attachment/screenshot → 正文。
+修复完成后,受保护的 POST /api/intake/receipts 可把简要回执回复到 GitHub Issue,
+并由历史工单接口同步给网站展示。
 PAT 只在服务端环境变量,绝不进入浏览器 / 静态产物。防滥用:honeypot + 每 IP 限流。
 未配置 GITHUB_TOKEN/REPO 时进入 dry-run:提交写入 INTAKE_LOG,便于联调。
 
 环境变量:
     GITHUB_TOKEN   fine-grained PAT(仅本仓库、仅 Issues 读写)
     GITHUB_REPO    owner/repo
+    INTAKE_ADMIN_TOKEN  回执写入接口的管理员 token(仅服务端/运维使用)
     PORT           监听端口,默认 8791(仅 127.0.0.1)
     RATE_PER_HOUR  每 IP 每小时上限,默认 12
     INTAKE_LOG     dry-run 落盘路径,默认 /var/log/alpha-intake/dryrun.ndjson
@@ -31,6 +34,7 @@ from pathlib import Path
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "").strip()
+INTAKE_ADMIN_TOKEN = os.environ.get("INTAKE_ADMIN_TOKEN", "").strip()
 PORT = int(os.environ.get("PORT", "8791"))
 RATE_PER_HOUR = int(os.environ.get("RATE_PER_HOUR", "12"))
 INTAKE_LOG = os.environ.get("INTAKE_LOG", "/var/log/alpha-intake/dryrun.ndjson")
@@ -39,6 +43,7 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 64 * 1024
 ISSUE_CACHE_SECONDS = int(os.environ.get("ISSUE_CACHE_SECONDS", "60"))
+RECEIPT_MARKER = "<!-- alpha-intake-receipt -->"
 
 TYPE_LABELS = {
     "功能": "功能",
@@ -59,6 +64,11 @@ MAX = {
     "related_packet": 80,
     "screenshot_url": 500,
     "screenshot_name": 120,
+    "issue_number": 16,
+    "fixed_by": 40,
+    "summary": 500,
+    "repair": 1200,
+    "result": 1200,
 }
 
 _hits: dict[str, deque] = defaultdict(deque)
@@ -89,6 +99,128 @@ def _rate_limited(ip: str) -> bool:
 
 def _clean(form: dict, key: str) -> str:
     return (form.get(key, [""])[0] or "").strip()[: MAX.get(key, 500)]
+
+
+def _clean_text(value: object, max_len: int) -> str:
+    return str(value or "").strip()[:max_len]
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _github_json(path: str, *, method: str = "GET", payload: dict | None = None) -> object:
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    headers = _github_headers()
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{GITHUB_REPO}{path}",
+        data=data,
+        method=method,
+        headers=headers,
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        raw = resp.read().decode("utf-8")
+    return json.loads(raw) if raw else {}
+
+
+def _receipt_body(receipt: dict) -> str:
+    fixed_by = _clean_text(receipt.get("fixed_by"), MAX["fixed_by"])
+    summary = _clean_text(receipt.get("summary"), MAX["summary"])
+    repair = _clean_text(receipt.get("repair"), MAX["repair"])
+    result = _clean_text(receipt.get("result"), MAX["result"])
+
+    lines = [RECEIPT_MARKER, "### 修复回执", ""]
+    if summary:
+        lines.append(f"**简要概括:** {summary}")
+    if repair:
+        lines.extend(["", "**如何修复:**", repair])
+    if result:
+        lines.extend(["", "**修复结果:**", result])
+    meta = []
+    if fixed_by:
+        meta.append(f"处理人:{fixed_by}")
+    meta.append(f"时间:{datetime.now(timezone.utc).isoformat()}")
+    lines.extend(["", f"_{' · '.join(meta)}_"])
+    return "\n".join(lines)
+
+
+def build_receipt(payload: dict) -> dict | None:
+    try:
+        issue_number = int(str(payload.get("issue_number", "")).strip())
+    except ValueError:
+        return None
+    if issue_number <= 0:
+        return None
+    summary = _clean_text(payload.get("summary"), MAX["summary"])
+    repair = _clean_text(payload.get("repair"), MAX["repair"])
+    result = _clean_text(payload.get("result"), MAX["result"])
+    if not (summary and repair and result):
+        return None
+    close_issue = _truthy(payload.get("close_issue", False))
+    return {
+        "issue_number": issue_number,
+        "body": _receipt_body(
+            {
+                "fixed_by": payload.get("fixed_by"),
+                "summary": summary,
+                "repair": repair,
+                "result": result,
+            }
+        ),
+        "close_issue": close_issue,
+    }
+
+
+def create_receipt(receipt: dict) -> dict:
+    issue_number = receipt["issue_number"]
+    if not (GITHUB_TOKEN and GITHUB_REPO):
+        os.makedirs(os.path.dirname(INTAKE_LOG), exist_ok=True)
+        with open(INTAKE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": time.time(), "receipt": receipt}, ensure_ascii=False) + "\n")
+        return {"dry_run": True, "number": issue_number}
+
+    comment = _github_json(
+        f"/issues/{issue_number}/comments",
+        method="POST",
+        payload={"body": receipt["body"]},
+    )
+    if receipt.get("close_issue"):
+        _github_json(f"/issues/{issue_number}", method="PATCH", payload={"state": "closed"})
+    _issues_cache["ts"] = 0.0
+    return {
+        "number": issue_number,
+        "comment_url": comment.get("html_url") if isinstance(comment, dict) else None,
+        "closed": bool(receipt.get("close_issue")),
+    }
+
+
+def _latest_receipt(comments_url: str) -> dict | None:
+    if not comments_url:
+        return None
+    req = urllib.request.Request(comments_url, headers=_github_headers())
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        comments = json.loads(resp.read().decode("utf-8"))
+    receipts = [item for item in comments if RECEIPT_MARKER in str(item.get("body") or "")]
+    if not receipts:
+        return None
+    item = receipts[-1]
+    body = str(item.get("body") or "")
+    summary = ""
+    for line in body.splitlines():
+        if line.startswith("**简要概括:**"):
+            summary = line.removeprefix("**简要概括:**").strip()
+            break
+    return {
+        "summary": summary,
+        "url": item.get("html_url"),
+        "created_at": item.get("created_at"),
+    }
 
 
 def _detect_image(data: bytes) -> tuple[str, str] | None:
@@ -211,6 +343,10 @@ def create_issue(payload: dict) -> dict:
 
 
 def _compact_issue(item: dict) -> dict:
+    milestone = item.get("milestone") or {}
+    receipt = None
+    if int(item.get("comments") or 0) > 0:
+        receipt = _latest_receipt(str(item.get("comments_url") or ""))
     return {
         "number": item.get("number"),
         "title": str(item.get("title") or "").removeprefix("[反馈] "),
@@ -220,6 +356,8 @@ def _compact_issue(item: dict) -> dict:
         "updated_at": item.get("updated_at"),
         "labels": [label.get("name") for label in item.get("labels", []) if label.get("name")],
         "comments": item.get("comments", 0),
+        "milestone": milestone.get("title") if isinstance(milestone, dict) else None,
+        "receipt": receipt,
     }
 
 
@@ -243,6 +381,16 @@ def list_issues(limit: int = 20) -> dict:
     return {"issues": issues, "cached": False}
 
 
+def _admin_authorized(headers) -> bool:
+    if not INTAKE_ADMIN_TOKEN:
+        return False
+    token = headers.get("X-Intake-Admin-Token", "").strip()
+    auth = headers.get("Authorization", "").strip()
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+    return secrets.compare_digest(token, INTAKE_ADMIN_TOKEN)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "alpha-intake/2.0"
 
@@ -259,7 +407,28 @@ class Handler(BaseHTTPRequestHandler):
         return xff.split(",")[0].strip() if xff else self.client_address[0]
 
     def do_POST(self) -> None:
-        if self.path.split("?")[0] != "/api/intake":
+        path = self.path.split("?")[0]
+        if path == "/api/intake/receipts":
+            if not _admin_authorized(self.headers):
+                return self._json(403, {"error": "回执接口未授权"})
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length > 16 * 1024:
+                    return self._json(413, {"error": "回执内容过大"})
+                payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+                receipt = build_receipt(payload)
+                if receipt is None:
+                    return self._json(400, {"error": "issue_number、summary、repair、result 为必填"})
+                return self._json(201, {"ok": True, **create_receipt(receipt)})
+            except json.JSONDecodeError:
+                return self._json(400, {"error": "JSON 格式错误"})
+            except urllib.error.HTTPError as e:
+                return self._json(502, {"error": f"GitHub 拒绝:{e.code}"})
+            except Exception as e:  # noqa: BLE001
+                self.log_error("receipt failed: %s", e)
+                return self._json(500, {"error": "回执写入失败"})
+
+        if path != "/api/intake":
             return self._json(404, {"error": "not found"})
         if _rate_limited(self._ip()):
             return self._json(429, {"error": "提交过于频繁,请稍后再试"})

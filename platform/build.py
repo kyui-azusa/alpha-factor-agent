@@ -18,6 +18,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent
 PACKETS_DIR = ROOT / "content" / "packets"
+SHOWCASE_DIR = ROOT / "content" / "showcase"
 CSS_FILE = ROOT / "static" / "style.css"
 DIST = ROOT / "dist"
 
@@ -59,6 +60,16 @@ def load_packets() -> list[dict]:
     return packets
 
 
+def load_showcase() -> list[dict]:
+    """成果展示条目。**fail-closed:只渲染显式写了 public: true 的条目**(ADR-0020)。"""
+    if not SHOWCASE_DIR.exists():
+        return []
+    items = [parse_packet(p) for p in SHOWCASE_DIR.glob("*.md")]
+    items = [m for m in items if m.get("public") is True]
+    items.sort(key=lambda m: (int(m.get("order", 999)), str(m.get("id", ""))))
+    return items
+
+
 def _esc(s) -> str:
     return html.escape(str(s), quote=True)
 
@@ -92,6 +103,77 @@ def render_packet_card(p: dict) -> str:
     <a class="permalink" href="#{_esc(p['id'])}" aria-label="卡片链接">#</a>
   </div>
 </article>"""
+
+
+KIND_LABELS = {
+    "paper": "论文",
+    "system": "系统",
+    "method-demo": "方法演示",
+    "figure": "图表",
+    "model": "模型",
+}
+
+
+def render_showcase_card(item: dict) -> str:
+    """按 kind 决定长相、内容不写死(PLATFORM_V2_SPEC §3.2 的通用 artifact 渲染器)。
+
+    展开区默认折叠,用原生 <details> —— 纯 UI 叙事节奏,不承担访问控制(ADR-0020)。
+    """
+    kind = str(item.get("kind", ""))
+    status = item.get("status", "")
+    status_block = f'<span class="status">{_esc(status)}</span>' if status else ""
+
+    note = item.get("note", "")
+    note_block = f'<p class="note">{_esc(note)}</p>' if note else ""
+
+    sections = item.get("sections") or []
+    sections_block = ""
+    if sections:
+        lis = "".join(f"<li>{_esc(s)}</li>" for s in sections)
+        sections_block = (
+            f'<details class="menu"><summary>目录:这篇讲了什么（{len(sections)} 节）</summary>'
+            f"<ol>{lis}</ol></details>"
+        )
+
+    links = item.get("links") or []
+    links_block = ""
+    if links:
+        anchors = "".join(
+            f'<a class="{"go primary" if link.get("primary") else "go"}" '
+            f'href="{_esc(link.get("href", "#"))}" target="_blank" rel="noopener">'
+            f'{_esc(link.get("label", "打开"))}</a>'
+            for link in links
+        )
+        links_block = f'<div class="go-row">{anchors}</div>'
+
+    body = item.get("body", "")
+    body_block = f'<p class="sc-body">{_esc(body)}</p>' if body else ""
+
+    return f"""<article class="sc-card reveal" id="sc-{_esc(item['id'])}">
+  <header>
+    <span class="kind">{_esc(KIND_LABELS.get(kind, kind or '产出'))}</span>
+    {status_block}
+  </header>
+  <h3>{_esc(item.get('title', '(无标题)'))}</h3>
+  <p class="sc-summary">{_esc(item.get('summary', ''))}</p>
+  {note_block}
+  {sections_block}
+  {body_block}
+  {links_block}
+</article>"""
+
+
+def render_showcase(items: list[dict]) -> str:
+    if not items:
+        return ""
+    cards = "\n".join(render_showcase_card(i) for i in items)
+    return f"""<section id="showcase" class="showcase-wrap">
+  <div class="section-label"><span>成果</span><em>{len(items)} 项</em></div>
+  <p class="showcase-lede">方法与系统已就位，真结果在路上。以下链接均指向仓库最新版本。</p>
+  <div class="showcase">
+{cards}
+  </div>
+</section>"""
 
 
 def render_form() -> str:
@@ -174,7 +256,7 @@ def render_form() -> str:
 </section>"""
 
 
-def render_page(packets: list[dict], css: str) -> str:
+def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
     cards = "\n".join(render_packet_card(p) for p in packets) or "<p>还没有想法卡片。</p>"
     hero = """<section class="hero">
   <span class="eyebrow"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
@@ -204,7 +286,7 @@ def render_page(packets: list[dict], css: str) -> str:
 <div class="bg" aria-hidden="true"><div class="aurora"></div><div class="grid-overlay"></div></div>
 <header class="site">
   <a class="brand" href="#top"><span class="logo"></span>Alpha 研学</a>
-  <nav><a href="#feed">想法流</a><a href="#submit" class="nav-cta">提问 / 建议</a></nav>
+  <nav><a href="#feed">想法流</a>{'<a href="#showcase">成果</a>' if showcase else ''}<a href="#submit" class="nav-cta">提问 / 建议</a></nav>
 </header>
 <main id="top">
 {hero}
@@ -214,6 +296,7 @@ def render_page(packets: list[dict], css: str) -> str:
 {cards}
   </div>
 </section>
+{render_showcase(showcase)}
 {render_form()}
 </main>
 <footer class="site-foot">
@@ -297,12 +380,16 @@ if (form) {
     issueList.innerHTML = items.map(function (item) {
       var labels = (item.labels || []).filter(function (name) { return name !== 'intake'; })
         .map(function (name) { return '<span class="mini-label">' + escapeHtml(name) + '</span>'; }).join('');
+      if (item.milestone) labels += '<span class="mini-label milestone">' + escapeHtml(item.milestone) + '</span>';
+      var receipt = item.receipt && item.receipt.summary
+        ? '<a class="receipt" href="' + escapeHtml(item.receipt.url || item.url) + '" target="_blank" rel="noopener">回执:' + escapeHtml(item.receipt.summary) + '</a>'
+        : '';
       var state = item.state === 'closed' ? '已关闭' : '处理中';
-      return '<a class="issue-item" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">'
+      return '<div class="issue-item">'
         + '<span class="issue-no">#' + escapeHtml(item.number) + '</span>'
-        + '<span class="issue-main"><strong>' + escapeHtml(item.title) + '</strong><span>' + labels + '</span></span>'
+        + '<span class="issue-main"><strong><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.title) + '</a></strong><span>' + labels + '</span>' + receipt + '</span>'
         + '<span class="issue-side"><em class="state ' + escapeHtml(item.state) + '">' + state + '</em><time>' + escapeHtml(formatDate(item.created_at)) + '</time></span>'
-        + '</a>';
+        + '</div>';
     }).join('');
   }
 
@@ -457,10 +544,11 @@ if (form) {
 
 def main() -> None:
     packets = load_packets()
+    showcase = load_showcase()
     css = CSS_FILE.read_text(encoding="utf-8") if CSS_FILE.exists() else ""
     DIST.mkdir(parents=True, exist_ok=True)
-    (DIST / "index.html").write_text(render_page(packets, css), encoding="utf-8")
-    print(f"✔ 单文件生成 {len(packets)} 张卡片 → {(DIST / 'index.html').relative_to(ROOT.parent)}")
+    (DIST / "index.html").write_text(render_page(packets, showcase, css), encoding="utf-8")
+    print(f"✔ 单文件生成 {len(packets)} 张卡片 / {len(showcase)} 项成果 → {(DIST / 'index.html').relative_to(ROOT.parent)}")
     print(f"  生成日期 {date.today()};工单 → 同源 /api/intake")
 
 

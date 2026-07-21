@@ -236,16 +236,20 @@ figures:               # 可选:引用已导出的图片
 
 **`kind` 是通用槽,不为任何具体产物写死 UI。** 用户当前尚未确定"模型"的形态 —— 将来若出现,只需新增一个 `kind: model` 的内容文件,**渲染器零改动**。这是本设计对未来形态不可知(forward-compatible)的关键。
 
-### 3.3 论文卡:`detail_public` 开关是防抄闸门
+### 3.3 论文卡(已实现 —— 见 ADR-0020 修订)
 
-**答辩前 `detail_public: false`:**
-- 只渲染:标题 + 摘要 + 章节目录("这篇论文会讲什么"的菜单) + 架构图/闭环图
-- **不提供 PDF 全文链接,PDF 不上传服务器**
-- 这同时满足两件事:①防同学提前抄方法(动机 C);②遮住 AI 初稿的粗糙(现在放全文反而拉低可信度)
+> **本节的 `detail_public` 闸门方案已作废。** 所有者决定把论文推入公开仓库(理由:需持续追加、需要同学看到进展、真因子与参数留到最后才放)。论文既已公开可读,展示面再藏无意义。
 
-**答辩后若想开放,`detail_public: true`:**
-- 额外渲染 PDF 链接;把 `paper/main.pdf` 拷到 `/var/www/alpha.cihua.run/paper.pdf`
-- **`build.py` 必须硬校验:`detail_public: false` 时,产物 HTML 中不得出现任何 PDF 路径。** 加一条单测。
+**现行实现(`platform/content/showcase/paper.md`,已上线于 `build.py`):**
+
+- 卡片渲染:`kind` 徽章 + `status`(早期草稿 · 持续追加中)+ `summary` + `note`(合成数据声明)+ 折叠的章节目录 + 链接行。
+- **链接直指 GitHub,不把 PDF 拷到服务器:**
+  `https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf`
+  仓库是唯一真相源 —— **push 完站点即最新,零同步维护**,不会出现"站上是旧版"。
+- 章节目录用原生 `<details>` 折叠:纯叙事节奏,**不承担访问控制**。
+- `public` 仍然 fail-closed(默认 `false`),这条不变。
+
+**壁垒退守到真正该守的位置:真实数据上的因子表达式与调好的参数** —— 既不在论文里,也不进仓库。
 
 ### 3.4 其余卡片(初版建议三张)
 
