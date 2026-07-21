@@ -7,6 +7,17 @@
 
 ---
 
+## 想看进展 / 提反馈
+
+研究过程沉淀的想法流在 **[alpha.cihua.run](https://alpha.cihua.run/)**。
+
+- **在网页上直接提**:打开 <https://alpha.cihua.run/#submit> 填表单即可 —— **无需 GitHub 账号**,系统会自动同步成一条 Issue。
+- **有 GitHub 账号**:直接 [新建 Issue](../../issues/new?template=feedback.yml)。
+
+请勿在工单里粘贴敏感数据。
+
+---
+
 ## 系统架构
 
 ```
