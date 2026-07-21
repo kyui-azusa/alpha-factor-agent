@@ -21,13 +21,19 @@ sections:
   - 可复现性声明
   - 讨论、局限与后续工作
   - 结论
+snapshot:
+  src: paper/main.pdf
+  as: paper.pdf
 links:
-  - label: 在线读 PDF
-    href: https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf
+  - label: 阅读论文
+    href: /paper.pdf
     primary: true
+    stamp: snapshot
+  - label: 仓库最新版
+    href: https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf
   - label: LaTeX 源码
     href: https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.tex
   - label: 代码仓库
     href: https://github.com/kyui-azusa/alpha-factor-agent
 ---
-论文与仓库同步更新 —— 这里的链接始终指向最新版本,不存在"网站上是旧版"的问题。
+站内是我选定的快照版本;论文在仓库里持续追加,想看最新进展的直接进仓库。

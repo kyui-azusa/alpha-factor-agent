@@ -311,6 +311,7 @@ header.site nav a:hover { color: var(--ink); }
 }
 .go:hover { box-shadow: var(--glow); transform: translateY(-1px); }
 .go.primary { background: rgba(124, 92, 255, .14); border-color: rgba(124, 92, 255, .35); }
+.go .stamp { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--faint); margin-left: 7px; }
 
 /* ---------- 入场动效 ---------- */
 .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
@@ -438,8 +439,8 @@ universe      date, code                                    ← 历史成分股,
   <p class="sc-summary">论证一件事:让 LLM 提假设、让确定性代码裁决真伪,因子的&quot;可解释&quot;就能从自然语言的经济故事, 变成一条可一路回溯到具体字段与有限算子的可审计链路。</p>
   <p class="note">当前实验全部跑在合成数据上,只用于验证工程链路(防前视、样本外划分、指标计算、报告落盘)的正确性, 其中的 IC 数值不具备经济含义,不代表任何真实市场结论。</p>
   <details class="menu"><summary>目录:这篇讲了什么（9 节）</summary><ol><li>引言</li><li>相关工作与定位</li><li>系统架构</li><li>数据契约与点时间对齐</li><li>方法(受限表达式引擎 / 基线因子 / 回测指标 / Agent 闭环)</li><li>实验:合成数据下的工程验证</li><li>可复现性声明</li><li>讨论、局限与后续工作</li><li>结论</li></ol></details>
-  <p class="sc-body">论文与仓库同步更新 —— 这里的链接始终指向最新版本,不存在&quot;网站上是旧版&quot;的问题。</p>
-  <div class="go-row"><a class="go primary" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf" target="_blank" rel="noopener">在线读 PDF</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.tex" target="_blank" rel="noopener">LaTeX 源码</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent" target="_blank" rel="noopener">代码仓库</a></div>
+  <p class="sc-body">站内是我选定的快照版本;论文在仓库里持续追加,想看最新进展的直接进仓库。</p>
+  <div class="go-row"><a class="go primary" href="/paper.pdf" target="_blank" rel="noopener">阅读论文<em class="stamp">2026-07-21</em></a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf" target="_blank" rel="noopener">仓库最新版</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.tex" target="_blank" rel="noopener">LaTeX 源码</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent" target="_blank" rel="noopener">代码仓库</a></div>
 </article>
   </div>
 </section>

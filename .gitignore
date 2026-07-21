@@ -33,6 +33,8 @@ platform/uploads/
 
 # 渲染产物(体积大,可重生成)
 videos/**/media/
+# 快照 PDF 是 paper/main.pdf 的副本,由 build.py 生成,不必在仓库里存两份
+platform/dist/paper.pdf
 
 # 聚源探查过程中落盘的临时样本(含真实数据切片)
 results/tmp_*.csv

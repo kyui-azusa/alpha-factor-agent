@@ -10,6 +10,7 @@ deploy-static-site skill 上传。工单为页面内结构化表单,POST 同源 
 from __future__ import annotations
 
 import html
+import shutil
 import urllib.parse
 from datetime import date
 from pathlib import Path
@@ -68,6 +69,28 @@ def load_showcase() -> list[dict]:
     items = [m for m in items if m.get("public") is True]
     items.sort(key=lambda m: (int(m.get("order", 999)), str(m.get("id", ""))))
     return items
+
+
+def copy_snapshots(items: list[dict]) -> list[tuple[str, str]]:
+    """把条目声明的 snapshot 文件拷进 dist/,并给条目打上快照日期。
+
+    站内放**快照**(所有者选定的版本),仓库放**最新版** —— 两者故意不同步:
+    快照的滞后是特性,它让 casual 访客看策展过的稳定版,真感兴趣的自己进仓库。
+    """
+    copied: list[tuple[str, str]] = []
+    for item in items:
+        snap = item.get("snapshot")
+        if not snap:
+            continue
+        src = ROOT.parent / str(snap.get("src", ""))
+        if not src.exists():
+            raise FileNotFoundError(f"{item['id']}: 快照源不存在 {src}")
+        dest_name = str(snap.get("as") or src.name)
+        DIST.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, DIST / dest_name)
+        item["snapshot_date"] = date.fromtimestamp(src.stat().st_mtime).isoformat()
+        copied.append((dest_name, item["snapshot_date"]))
+    return copied
 
 
 def _esc(s) -> str:
@@ -138,13 +161,18 @@ def render_showcase_card(item: dict) -> str:
     links = item.get("links") or []
     links_block = ""
     if links:
-        anchors = "".join(
-            f'<a class="{"go primary" if link.get("primary") else "go"}" '
-            f'href="{_esc(link.get("href", "#"))}" target="_blank" rel="noopener">'
-            f'{_esc(link.get("label", "打开"))}</a>'
-            for link in links
-        )
-        links_block = f'<div class="go-row">{anchors}</div>'
+        parts = []
+        for link in links:
+            label = _esc(link.get("label", "打开"))
+            # stamp: snapshot → 标签后附快照日期,让访客知道站内读的是哪一版
+            if link.get("stamp") == "snapshot" and item.get("snapshot_date"):
+                label += f'<em class="stamp">{_esc(item["snapshot_date"])}</em>'
+            parts.append(
+                f'<a class="{"go primary" if link.get("primary") else "go"}" '
+                f'href="{_esc(link.get("href", "#"))}" target="_blank" rel="noopener">'
+                f"{label}</a>"
+            )
+        links_block = f'<div class="go-row">{"".join(parts)}</div>'
 
     body = item.get("body", "")
     body_block = f'<p class="sc-body">{_esc(body)}</p>' if body else ""
@@ -547,9 +575,15 @@ def main() -> None:
     showcase = load_showcase()
     css = CSS_FILE.read_text(encoding="utf-8") if CSS_FILE.exists() else ""
     DIST.mkdir(parents=True, exist_ok=True)
+    snapshots = copy_snapshots(showcase)
     (DIST / "index.html").write_text(render_page(packets, showcase, css), encoding="utf-8")
     print(f"✔ 单文件生成 {len(packets)} 张卡片 / {len(showcase)} 项成果 → {(DIST / 'index.html').relative_to(ROOT.parent)}")
+    for name, snap_date in snapshots:
+        print(f"  快照 {name}(源修改于 {snap_date})")
     print(f"  生成日期 {date.today()};工单 → 同源 /api/intake")
+    if snapshots:
+        names = " ".join(n for n, _ in snapshots)
+        print(f"  部署需上传:index.html {names}")
 
 
 if __name__ == "__main__":
