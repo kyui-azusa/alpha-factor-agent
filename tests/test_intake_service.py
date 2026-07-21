@@ -82,6 +82,37 @@ def test_compact_issue_includes_milestone_and_latest_receipt(monkeypatch):
     assert compact["receipt"]["summary"] == "已修复并验证"
 
 
+def test_latest_receipt_falls_back_to_latest_plain_comment(monkeypatch):
+    comments = [
+        {
+            "body": "线上截图上传自检通过,关闭测试 issue。",
+            "html_url": "https://github.test/issues/3#issuecomment-1",
+            "created_at": "2026-07-20T15:54:31Z",
+        }
+    ]
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(comments).encode("utf-8")
+
+    monkeypatch.setattr(intake_service.urllib.request, "urlopen", lambda req, timeout=15: FakeResponse())
+
+    receipt = intake_service._latest_receipt("https://api.github.test/issues/3/comments")
+
+    assert receipt == {
+        "summary": "线上截图上传自检通过,关闭测试 issue。",
+        "url": "https://github.test/issues/3#issuecomment-1",
+        "created_at": "2026-07-20T15:54:31Z",
+        "kind": "comment",
+    }
+
+
 def test_create_receipt_posts_comment_and_optionally_closes_issue(monkeypatch):
     calls = []
 

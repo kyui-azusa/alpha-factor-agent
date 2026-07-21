@@ -259,6 +259,66 @@ header.site nav a:hover { color: var(--ink); }
 .credit svg { width: 17px; height: 17px; fill: currentColor; flex: 0 0 auto; }
 .credit:hover { color: var(--ink); transform: translateY(-1px); }
 
+/* ---------- 方法依赖图 ---------- */
+.graph-wrap { margin-top: 44px; }
+.graph-lede { color: var(--muted); font-size: 14px; margin: -4px 0 12px; max-width: 62ch; }
+.graph-lede strong { color: var(--ink); }
+.graph-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.lg i { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+.lg.guard i { border-radius: 50%; background: hsl(190 90% 60%); }
+/* 图比版心宽:宽屏时突破 760px 版心,免得桌面也要横向拖。
+   用负 margin 而非 transform —— .reveal 的入场动画占用了 transform,会把位移覆盖掉。 */
+@media (min-width: 1120px) {
+  .graph-wrap { margin-inline: calc((100% - min(1440px, 100vw - 48px)) / 2); }
+}
+.graph-stage { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+/* 面板与图并排,不是盖在图上 —— 否则点最右列的节点会被自己的面板挡住 */
+@media (min-width: 981px) {
+  .graph-stage.with-panel { grid-template-columns: minmax(0, 1fr) 330px; }
+}
+.graph-scroll {
+  overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line);
+  border-radius: 18px; background: rgba(255,255,255,.018); padding: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.graph-scroll svg { display: block; width: 1148px; max-width: none; height: auto; }
+.graph-hint { margin: 8px 0 0; text-align: center; font-size: 12px; color: var(--faint); font-family: var(--mono); }
+
+/* 回溯面板:桌面在图右侧同排,窄屏从底部升起 */
+.trace {
+  position: relative; max-height: 74vh; overflow-y: auto;
+  background: rgba(12, 13, 24, .94); border: 1px solid var(--line); border-radius: 18px;
+  padding: 18px 20px 20px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,.9); z-index: 40;
+}
+.trace[hidden] { display: none; }
+.trace-close {
+  position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; line-height: 1;
+  background: var(--card-hi); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--muted); font-size: 16px; cursor: pointer;
+}
+.trace-close:hover { color: var(--ink); }
+.trace-layer { font-family: var(--mono); font-size: 11px; color: var(--a2); letter-spacing: .06em; }
+.trace h3 { margin: 6px 0 8px; font-size: 17px; font-family: var(--mono); letter-spacing: -.01em; }
+.trace-one { margin: 0 0 12px; font-size: 13.5px; color: #d6d9e8; }
+.tg {
+  display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; padding: 9px 11px;
+  border-radius: 10px; background: rgba(34,211,238,.07); border: 1px solid rgba(34,211,238,.2);
+}
+.tg strong { font-size: 12.5px; color: var(--a2); }
+.tg span { font-size: 12px; color: var(--muted); }
+.tc-head { margin: 12px 0 8px; font-size: 12.5px; color: var(--faint); }
+.tc-layer { display: flex; gap: 8px; margin-bottom: 7px; }
+.tc-name { flex: 0 0 62px; font-size: 11.5px; color: var(--a1); padding-top: 2px; }
+.tc-items { display: flex; flex-wrap: wrap; gap: 4px; }
+.tc-items code, .trace-refs code {
+  font-family: var(--mono); font-size: 11px; color: #cfd3e6;
+  background: var(--card-hi); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px;
+}
+.trace-refs { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.tr-label { font-size: 11.5px; color: var(--faint); margin-right: 3px; }
+
 /* ---------- 成果展示 ---------- */
 .showcase-wrap { margin-top: 40px; }
 .showcase-lede { color: var(--muted); font-size: 14px; margin: -4px 0 16px; }
@@ -302,6 +362,23 @@ header.site nav a:hover { color: var(--ink); }
 .go:hover { box-shadow: var(--glow); transform: translateY(-1px); }
 .go.primary { background: rgba(124, 92, 255, .14); border-color: rgba(124, 92, 255, .35); }
 .go .stamp { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--faint); margin-left: 7px; }
+button.go { font-family: inherit; cursor: pointer; }
+button.go.open { background: rgba(124, 92, 255, .22); border-color: rgba(124, 92, 255, .5); }
+button.go.open::after { content: " ▾"; color: var(--a2); }
+
+/* 站内阅读:PDF 内嵌 */
+.embed { margin-top: 14px; }
+.embed[hidden] { display: none; }
+.embed iframe {
+  display: block; width: 100%; height: min(80vh, 900px); border: 1px solid var(--line);
+  border-radius: 12px; background: #1a1b26;
+}
+.embed-fallback { margin: 8px 0 0; font-size: 12px; color: var(--faint); text-align: center; }
+.embed-fallback a { color: var(--a2); }
+@media (max-width: 720px) {
+  /* iOS 的内嵌 PDF 常只渲染首页 —— 压低高度,把"新标签打开"顶到显眼处 */
+  .embed iframe { height: 60vh; }
+}
 
 /* ---------- 入场动效 ---------- */
 .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
@@ -309,6 +386,13 @@ header.site nav a:hover { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
 
 /* ---------- 窄屏 ---------- */
+@media (max-width: 980px) {
+  /* 窄屏改为从底部升起的抽屉 —— 手机上图看不清没关系,论点靠面板里的链路列表传达 */
+  .trace {
+    position: fixed; right: 0; left: 0; bottom: 0; width: auto; max-height: 62vh;
+    border-radius: 20px 20px 0 0; border-bottom: none;
+  }
+}
 @media (max-width: 560px) {
   .grid, .grid-3 { grid-template-columns: 1fr; }
   .shot-preview { grid-template-columns: 64px minmax(0, 1fr) auto; }

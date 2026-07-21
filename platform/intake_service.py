@@ -206,20 +206,25 @@ def _latest_receipt(comments_url: str) -> dict | None:
     req = urllib.request.Request(comments_url, headers=_github_headers())
     with urllib.request.urlopen(req, timeout=15) as resp:
         comments = json.loads(resp.read().decode("utf-8"))
-    receipts = [item for item in comments if RECEIPT_MARKER in str(item.get("body") or "")]
-    if not receipts:
+    if not comments:
         return None
-    item = receipts[-1]
+    receipts = [item for item in comments if RECEIPT_MARKER in str(item.get("body") or "")]
+    item = receipts[-1] if receipts else comments[-1]
     body = str(item.get("body") or "")
-    summary = ""
+    summary = _clean_text(body.replace(RECEIPT_MARKER, "").replace("### 修复回执", ""), MAX["summary"])
+    kind = "comment"
     for line in body.splitlines():
         if line.startswith("**简要概括:**"):
             summary = line.removeprefix("**简要概括:**").strip()
+            kind = "receipt"
             break
+    if not summary:
+        return None
     return {
         "summary": summary,
         "url": item.get("html_url"),
         "created_at": item.get("created_at"),
+        "kind": kind,
     }
 
 

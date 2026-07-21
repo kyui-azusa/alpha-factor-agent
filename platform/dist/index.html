@@ -269,6 +269,66 @@ header.site nav a:hover { color: var(--ink); }
 .credit svg { width: 17px; height: 17px; fill: currentColor; flex: 0 0 auto; }
 .credit:hover { color: var(--ink); transform: translateY(-1px); }
 
+/* ---------- 方法依赖图 ---------- */
+.graph-wrap { margin-top: 44px; }
+.graph-lede { color: var(--muted); font-size: 14px; margin: -4px 0 12px; max-width: 62ch; }
+.graph-lede strong { color: var(--ink); }
+.graph-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.lg i { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+.lg.guard i { border-radius: 50%; background: hsl(190 90% 60%); }
+/* 图比版心宽:宽屏时突破 760px 版心,免得桌面也要横向拖。
+   用负 margin 而非 transform —— .reveal 的入场动画占用了 transform,会把位移覆盖掉。 */
+@media (min-width: 1120px) {
+  .graph-wrap { margin-inline: calc((100% - min(1440px, 100vw - 48px)) / 2); }
+}
+.graph-stage { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+/* 面板与图并排,不是盖在图上 —— 否则点最右列的节点会被自己的面板挡住 */
+@media (min-width: 981px) {
+  .graph-stage.with-panel { grid-template-columns: minmax(0, 1fr) 330px; }
+}
+.graph-scroll {
+  overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line);
+  border-radius: 18px; background: rgba(255,255,255,.018); padding: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.graph-scroll svg { display: block; width: 1148px; max-width: none; height: auto; }
+.graph-hint { margin: 8px 0 0; text-align: center; font-size: 12px; color: var(--faint); font-family: var(--mono); }
+
+/* 回溯面板:桌面在图右侧同排,窄屏从底部升起 */
+.trace {
+  position: relative; max-height: 74vh; overflow-y: auto;
+  background: rgba(12, 13, 24, .94); border: 1px solid var(--line); border-radius: 18px;
+  padding: 18px 20px 20px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,.9); z-index: 40;
+}
+.trace[hidden] { display: none; }
+.trace-close {
+  position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; line-height: 1;
+  background: var(--card-hi); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--muted); font-size: 16px; cursor: pointer;
+}
+.trace-close:hover { color: var(--ink); }
+.trace-layer { font-family: var(--mono); font-size: 11px; color: var(--a2); letter-spacing: .06em; }
+.trace h3 { margin: 6px 0 8px; font-size: 17px; font-family: var(--mono); letter-spacing: -.01em; }
+.trace-one { margin: 0 0 12px; font-size: 13.5px; color: #d6d9e8; }
+.tg {
+  display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; padding: 9px 11px;
+  border-radius: 10px; background: rgba(34,211,238,.07); border: 1px solid rgba(34,211,238,.2);
+}
+.tg strong { font-size: 12.5px; color: var(--a2); }
+.tg span { font-size: 12px; color: var(--muted); }
+.tc-head { margin: 12px 0 8px; font-size: 12.5px; color: var(--faint); }
+.tc-layer { display: flex; gap: 8px; margin-bottom: 7px; }
+.tc-name { flex: 0 0 62px; font-size: 11.5px; color: var(--a1); padding-top: 2px; }
+.tc-items { display: flex; flex-wrap: wrap; gap: 4px; }
+.tc-items code, .trace-refs code {
+  font-family: var(--mono); font-size: 11px; color: #cfd3e6;
+  background: var(--card-hi); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px;
+}
+.trace-refs { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.tr-label { font-size: 11.5px; color: var(--faint); margin-right: 3px; }
+
 /* ---------- 成果展示 ---------- */
 .showcase-wrap { margin-top: 40px; }
 .showcase-lede { color: var(--muted); font-size: 14px; margin: -4px 0 16px; }
@@ -312,6 +372,23 @@ header.site nav a:hover { color: var(--ink); }
 .go:hover { box-shadow: var(--glow); transform: translateY(-1px); }
 .go.primary { background: rgba(124, 92, 255, .14); border-color: rgba(124, 92, 255, .35); }
 .go .stamp { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--faint); margin-left: 7px; }
+button.go { font-family: inherit; cursor: pointer; }
+button.go.open { background: rgba(124, 92, 255, .22); border-color: rgba(124, 92, 255, .5); }
+button.go.open::after { content: " ▾"; color: var(--a2); }
+
+/* 站内阅读:PDF 内嵌 */
+.embed { margin-top: 14px; }
+.embed[hidden] { display: none; }
+.embed iframe {
+  display: block; width: 100%; height: min(80vh, 900px); border: 1px solid var(--line);
+  border-radius: 12px; background: #1a1b26;
+}
+.embed-fallback { margin: 8px 0 0; font-size: 12px; color: var(--faint); text-align: center; }
+.embed-fallback a { color: var(--a2); }
+@media (max-width: 720px) {
+  /* iOS 的内嵌 PDF 常只渲染首页 —— 压低高度,把"新标签打开"顶到显眼处 */
+  .embed iframe { height: 60vh; }
+}
 
 /* ---------- 入场动效 ---------- */
 .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
@@ -319,6 +396,13 @@ header.site nav a:hover { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
 
 /* ---------- 窄屏 ---------- */
+@media (max-width: 980px) {
+  /* 窄屏改为从底部升起的抽屉 —— 手机上图看不清没关系,论点靠面板里的链路列表传达 */
+  .trace {
+    position: fixed; right: 0; left: 0; bottom: 0; width: auto; max-height: 62vh;
+    border-radius: 20px 20px 0 0; border-bottom: none;
+  }
+}
 @media (max-width: 560px) {
   .grid, .grid-3 { grid-template-columns: 1fr; }
   .shot-preview { grid-template-columns: 64px minmax(0, 1fr) auto; }
@@ -335,7 +419,7 @@ header.site nav a:hover { color: var(--ink); }
 <div class="bg" aria-hidden="true"><div class="aurora"></div><div class="grid-overlay"></div></div>
 <header class="site">
   <a class="brand" href="#top"><span class="logo"></span>Alpha 研学</a>
-  <nav><a href="#feed">想法流</a><a href="#showcase">成果</a><a href="#submit" class="nav-cta">提问 / 建议</a></nav>
+  <nav><a href="#feed">想法流</a><a href="#graph">方法图</a><a href="#showcase">成果</a><a href="#submit" class="nav-cta">提问 / 建议</a></nav>
 </header>
 <main id="top">
 <section class="hero">
@@ -426,6 +510,37 @@ universe      date, code                                    ← 历史成分股,
 </article>
   </div>
 </section>
+<section id="graph" class="graph-wrap reveal">
+  <div class="section-label"><span>方法依赖图</span><em>40 节点 · 60 依赖</em></div>
+  <p class="graph-lede">论文说因子的可解释性"可一路回溯到具体字段与有限算子"。<strong>点任意节点,看它的完整上游链路</strong> —— 这张图就是那句话的证据。</p>
+  <div class="graph-legend"><span class="lg"><i style="background:hsl(190 70% 62%)"></i>原始字段</span><span class="lg"><i style="background:hsl(210 70% 62%)"></i>对齐与预处理</span><span class="lg"><i style="background:hsl(258 70% 62%)"></i>白名单算子</span><span class="lg"><i style="background:hsl(285 70% 62%)"></i>因子类别</span><span class="lg"><i style="background:hsl(320 70% 62%)"></i>评价指标</span><span class="lg guard"><i></i>带防线的节点</span></div>
+  <div class="graph-stage">
+    <div class="graph-col">
+      <div class="graph-scroll" data-graph-scroll><svg id="graph-svg" viewBox="0 0 1148 758" role="img" aria-label="方法依赖图:从原始字段到评价指标的计算依赖"><style>
+  .g-layer { font: 700 12.5px var(--sans, system-ui); letter-spacing:.04em; }
+  .g-note  { font: 10.5px var(--sans, system-ui); }
+  .g-node text { font: 11.5px var(--mono, ui-monospace, Menlo, monospace); pointer-events:none; }
+  .g-node { cursor: pointer; }
+  .g-node rect { transition: fill .18s, stroke .18s; }
+  .g-node:hover rect, .g-node:focus rect { stroke-width: 1.8; }
+  .g-node:focus { outline: none; }
+  .dim { opacity: .12; }
+  .lit rect { stroke-width: 1.8; }
+  .g-edge.lit { stroke-opacity: .95 !important; stroke-width: 2 !important; }
+</style><text class="g-layer" x="110.0" y="24" text-anchor="middle" fill="hsl(190 70% 62%)">原始字段</text><text class="g-note" x="110.0" y="39" text-anchor="middle" fill="#656b86">三张表的列,一切数值的起点</text><text class="g-layer" x="342.0" y="24" text-anchor="middle" fill="hsl(210 70% 62%)">对齐与预处理</text><text class="g-note" x="342.0" y="39" text-anchor="middle" fill="#656b86">决定 T 日能看见什么</text><text class="g-layer" x="574.0" y="24" text-anchor="middle" fill="hsl(258 70% 62%)">白名单算子</text><text class="g-note" x="574.0" y="39" text-anchor="middle" fill="#656b86">受限 AST,禁止任意代码执行</text><text class="g-layer" x="806.0" y="24" text-anchor="middle" fill="hsl(285 70% 62%)">因子类别</text><text class="g-note" x="806.0" y="39" text-anchor="middle" fill="#656b86">只到类别,不含表达式</text><text class="g-layer" x="1038.0" y="24" text-anchor="middle" fill="hsl(320 70% 62%)">评价指标</text><text class="g-note" x="1038.0" y="39" text-anchor="middle" fill="#656b86">全部由确定性代码计算</text><g class="g-edges"><path class="g-edge" id="e0" data-from="ann_date" data-to="pit_merge" data-kind="computes" d="M194.0,485.0 C226.0,485.0 226.0,416.0 258.0,416.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e1" data-from="report_period" data-to="pit_merge" data-kind="computes" d="M194.0,577.0 C226.0,577.0 226.0,416.0 258.0,416.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e2" data-from="close" data-to="adj_price" data-kind="computes" d="M194.0,393.0 C226.0,393.0 226.0,278.0 258.0,278.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e3" data-from="adj_factor" data-to="adj_price" data-kind="computes" d="M194.0,255.0 C226.0,255.0 226.0,278.0 258.0,278.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e4" data-from="adj_price" data-to="fwd_ret" data-kind="computes" d="M426.0,278.0 C342.0,278.0 342.0,324.0 258.0,324.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e5" data-from="industry" data-to="neutralize" data-kind="computes" d="M194.0,439.0 C226.0,439.0 226.0,370.0 258.0,370.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e6" data-from="mktcap" data-to="neutralize" data-kind="computes" d="M194.0,347.0 C226.0,347.0 226.0,370.0 258.0,370.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e7" data-from="eps" data-to="f_value" data-kind="uses" d="M194.0,715.0 C458.0,715.0 458.0,485.0 722.0,485.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e8" data-from="book_value_per_share" data-to="f_value" data-kind="uses" d="M194.0,669.0 C458.0,669.0 458.0,485.0 722.0,485.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e9" data-from="close" data-to="f_value" data-kind="uses" d="M194.0,393.0 C458.0,393.0 458.0,485.0 722.0,485.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e10" data-from="net_income" data-to="f_quality" data-kind="uses" d="M194.0,531.0 C458.0,531.0 458.0,439.0 722.0,439.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e11" data-from="total_equity" data-to="f_quality" data-kind="uses" d="M194.0,623.0 C458.0,623.0 458.0,439.0 722.0,439.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e12" data-from="close" data-to="f_momentum" data-kind="uses" d="M194.0,393.0 C458.0,393.0 458.0,393.0 722.0,393.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e13" data-from="close" data-to="f_lowvol" data-kind="uses" d="M194.0,393.0 C458.0,393.0 458.0,347.0 722.0,347.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e14" data-from="amount" data-to="f_liquidity" data-kind="uses" d="M194.0,301.0 C458.0,301.0 458.0,301.0 722.0,301.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e15" data-from="mktcap" data-to="f_liquidity" data-kind="uses" d="M194.0,347.0 C458.0,347.0 458.0,301.0 722.0,301.0" fill="none" stroke="hsl(190 70% 62%)" stroke-width="1.0" stroke-opacity="0.22" stroke-dasharray="3 4"/><path class="g-edge" id="e16" data-from="pit_merge" data-to="f_value" data-kind="computes" d="M426.0,416.0 C574.0,416.0 574.0,485.0 722.0,485.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e17" data-from="pit_merge" data-to="f_quality" data-kind="computes" d="M426.0,416.0 C574.0,416.0 574.0,439.0 722.0,439.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e18" data-from="adj_price" data-to="f_momentum" data-kind="computes" d="M426.0,278.0 C574.0,278.0 574.0,393.0 722.0,393.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e19" data-from="adj_price" data-to="f_lowvol" data-kind="computes" d="M426.0,278.0 C574.0,278.0 574.0,347.0 722.0,347.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e20" data-from="adj_price" data-to="f_liquidity" data-kind="computes" d="M426.0,278.0 C574.0,278.0 574.0,301.0 722.0,301.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e21" data-from="rank" data-to="f_value" data-kind="computes" d="M658.0,508.0 C690.0,508.0 690.0,485.0 722.0,485.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e22" data-from="safe_div" data-to="f_value" data-kind="computes" d="M658.0,554.0 C690.0,554.0 690.0,485.0 722.0,485.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e23" data-from="rank" data-to="f_quality" data-kind="computes" d="M658.0,508.0 C690.0,508.0 690.0,439.0 722.0,439.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e24" data-from="safe_div" data-to="f_quality" data-kind="computes" d="M658.0,554.0 C690.0,554.0 690.0,439.0 722.0,439.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e25" data-from="rank" data-to="f_momentum" data-kind="computes" d="M658.0,508.0 C690.0,508.0 690.0,393.0 722.0,393.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e26" data-from="delay" data-to="f_momentum" data-kind="computes" d="M658.0,416.0 C690.0,416.0 690.0,393.0 722.0,393.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e27" data-from="safe_div" data-to="f_momentum" data-kind="computes" d="M658.0,554.0 C690.0,554.0 690.0,393.0 722.0,393.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e28" data-from="rank" data-to="f_lowvol" data-kind="computes" d="M658.0,508.0 C690.0,508.0 690.0,347.0 722.0,347.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e29" data-from="ts_std" data-to="f_lowvol" data-kind="computes" d="M658.0,462.0 C690.0,462.0 690.0,347.0 722.0,347.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e30" data-from="delay" data-to="f_lowvol" data-kind="computes" d="M658.0,416.0 C690.0,416.0 690.0,347.0 722.0,347.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e31" data-from="safe_div" data-to="f_lowvol" data-kind="computes" d="M658.0,554.0 C690.0,554.0 690.0,347.0 722.0,347.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e32" data-from="rank" data-to="f_liquidity" data-kind="computes" d="M658.0,508.0 C690.0,508.0 690.0,301.0 722.0,301.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e33" data-from="delay" data-to="f_liquidity" data-kind="computes" d="M658.0,416.0 C690.0,416.0 690.0,301.0 722.0,301.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e34" data-from="safe_div" data-to="f_liquidity" data-kind="computes" d="M658.0,554.0 C690.0,554.0 690.0,301.0 722.0,301.0" fill="none" stroke="hsl(258 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e35" data-from="winsorize" data-to="f_value" data-kind="computes" d="M426.0,462.0 C574.0,462.0 574.0,485.0 722.0,485.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e36" data-from="zscore" data-to="f_value" data-kind="computes" d="M426.0,508.0 C574.0,508.0 574.0,485.0 722.0,485.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e37" data-from="neutralize" data-to="f_value" data-kind="computes" d="M426.0,370.0 C574.0,370.0 574.0,485.0 722.0,485.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e38" data-from="neutralize" data-to="f_quality" data-kind="computes" d="M426.0,370.0 C574.0,370.0 574.0,439.0 722.0,439.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e39" data-from="f_value" data-to="rank_ic" data-kind="computes" d="M890.0,485.0 C922.0,485.0 922.0,370.0 954.0,370.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e40" data-from="f_quality" data-to="rank_ic" data-kind="computes" d="M890.0,439.0 C922.0,439.0 922.0,370.0 954.0,370.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e41" data-from="f_momentum" data-to="rank_ic" data-kind="computes" d="M890.0,393.0 C922.0,393.0 922.0,370.0 954.0,370.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e42" data-from="f_lowvol" data-to="rank_ic" data-kind="computes" d="M890.0,347.0 C922.0,347.0 922.0,370.0 954.0,370.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e43" data-from="f_liquidity" data-to="rank_ic" data-kind="computes" d="M890.0,301.0 C922.0,301.0 922.0,370.0 954.0,370.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e44" data-from="fwd_ret" data-to="rank_ic" data-kind="computes" d="M426.0,324.0 C690.0,324.0 690.0,370.0 954.0,370.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e45" data-from="fwd_ret" data-to="quantile_ret" data-kind="computes" d="M426.0,324.0 C690.0,324.0 690.0,324.0 954.0,324.0" fill="none" stroke="hsl(210 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e46" data-from="f_value" data-to="quantile_ret" data-kind="computes" d="M890.0,485.0 C922.0,485.0 922.0,324.0 954.0,324.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e47" data-from="f_quality" data-to="quantile_ret" data-kind="computes" d="M890.0,439.0 C922.0,439.0 922.0,324.0 954.0,324.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e48" data-from="f_momentum" data-to="quantile_ret" data-kind="computes" d="M890.0,393.0 C922.0,393.0 922.0,324.0 954.0,324.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e49" data-from="f_lowvol" data-to="quantile_ret" data-kind="computes" d="M890.0,347.0 C922.0,347.0 922.0,324.0 954.0,324.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e50" data-from="f_liquidity" data-to="quantile_ret" data-kind="computes" d="M890.0,301.0 C922.0,301.0 922.0,324.0 954.0,324.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e51" data-from="f_value" data-to="turnover" data-kind="computes" d="M890.0,485.0 C922.0,485.0 922.0,416.0 954.0,416.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e52" data-from="f_quality" data-to="turnover" data-kind="computes" d="M890.0,439.0 C922.0,439.0 922.0,416.0 954.0,416.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e53" data-from="f_momentum" data-to="turnover" data-kind="computes" d="M890.0,393.0 C922.0,393.0 922.0,416.0 954.0,416.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e54" data-from="f_lowvol" data-to="turnover" data-kind="computes" d="M890.0,347.0 C922.0,347.0 922.0,416.0 954.0,416.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e55" data-from="f_liquidity" data-to="turnover" data-kind="computes" d="M890.0,301.0 C922.0,301.0 922.0,416.0 954.0,416.0" fill="none" stroke="hsl(285 70% 62%)" stroke-width="1.2" stroke-opacity="0.34"/><path class="g-edge" id="e56" data-from="rank_ic" data-to="ic_ir" data-kind="derives" d="M1122.0,370.0 C1038.0,370.0 1038.0,508.0 954.0,508.0" fill="none" stroke="hsl(320 70% 62%)" stroke-width="1.6" stroke-opacity="0.46"/><path class="g-edge" id="e57" data-from="quantile_ret" data-to="long_short" data-kind="derives" d="M1122.0,324.0 C1038.0,324.0 1038.0,278.0 954.0,278.0" fill="none" stroke="hsl(320 70% 62%)" stroke-width="1.6" stroke-opacity="0.46"/><path class="g-edge" id="e58" data-from="long_short" data-to="net_ret" data-kind="derives" d="M1122.0,278.0 C1038.0,278.0 1038.0,462.0 954.0,462.0" fill="none" stroke="hsl(320 70% 62%)" stroke-width="1.6" stroke-opacity="0.46"/><path class="g-edge" id="e59" data-from="turnover" data-to="net_ret" data-kind="derives" d="M1122.0,416.0 C1038.0,416.0 1038.0,462.0 954.0,462.0" fill="none" stroke="hsl(320 70% 62%)" stroke-width="1.6" stroke-opacity="0.46"/></g><g class='g-nodes'><g class="g-node" data-node="close" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="376.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="397.0" text-anchor="middle" fill="#eef0fa">close</text></g><g class="g-node" data-node="amount" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="284.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="305.0" text-anchor="middle" fill="#eef0fa">amount</text></g><g class="g-node" data-node="vol" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="192.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="213.0" text-anchor="middle" fill="#eef0fa">vol</text></g><g class="g-node" data-node="adj_factor" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="238.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="259.0" text-anchor="middle" fill="#eef0fa">adj_factor</text></g><g class="g-node" data-node="mktcap" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="330.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="351.0" text-anchor="middle" fill="#eef0fa">mktcap</text></g><g class="g-node" data-node="industry" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="422.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="443.0" text-anchor="middle" fill="#eef0fa">industry</text></g><g class="g-node emph" data-node="ann_date" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="468.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .18)" stroke="hsl(190 70% 62% / .70)"/><circle class="g-guarddot" cx="185.0" cy="477.0" r="3" fill="hsl(190 90% 60%)"/><text x="110.0" y="489.0" text-anchor="middle" fill="#eef0fa">ann_date</text></g><g class="g-node" data-node="report_period" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="560.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="581.0" text-anchor="middle" fill="#eef0fa">report_period</text></g><g class="g-node" data-node="eps" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="698.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="719.0" text-anchor="middle" fill="#eef0fa">eps</text></g><g class="g-node" data-node="book_value_per_share" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="652.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="673.0" text-anchor="middle" fill="#eef0fa">book_value_per_share</text></g><g class="g-node" data-node="net_income" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="514.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="535.0" text-anchor="middle" fill="#eef0fa">net_income</text></g><g class="g-node" data-node="total_equity" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="606.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="627.0" text-anchor="middle" fill="#eef0fa">total_equity</text></g><g class="g-node" data-node="total_assets" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="100.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="121.0" text-anchor="middle" fill="#eef0fa">total_assets</text></g><g class="g-node" data-node="operating_cash_flow" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="54.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><text x="110.0" y="75.0" text-anchor="middle" fill="#eef0fa">operating_cash_flow</text></g><g class="g-node" data-node="universe" data-layer="field" tabindex="0" role="button"><rect x="26.0" y="146.0" width="168" height="34" rx="9" fill="hsl(190 70% 50% / .09)" stroke="hsl(190 70% 62% / .38)"/><circle class="g-guarddot" cx="185.0" cy="155.0" r="3" fill="hsl(190 90% 60%)"/><text x="110.0" y="167.0" text-anchor="middle" fill="#eef0fa">universe</text></g><g class="g-node emph" data-node="pit_merge" data-layer="align" tabindex="0" role="button"><rect x="258.0" y="399.0" width="168" height="34" rx="9" fill="hsl(210 70% 50% / .18)" stroke="hsl(210 70% 62% / .70)"/><circle class="g-guarddot" cx="417.0" cy="408.0" r="3" fill="hsl(190 90% 60%)"/><text x="342.0" y="420.0" text-anchor="middle" fill="#eef0fa">pit_merge</text></g><g class="g-node" data-node="adj_price" data-layer="align" tabindex="0" role="button"><rect x="258.0" y="261.0" width="168" height="34" rx="9" fill="hsl(210 70% 50% / .09)" stroke="hsl(210 70% 62% / .38)"/><text x="342.0" y="282.0" text-anchor="middle" fill="#eef0fa">前复权价</text></g><g class="g-node" data-node="fwd_ret" data-layer="align" tabindex="0" role="button"><rect x="258.0" y="307.0" width="168" height="34" rx="9" fill="hsl(210 70% 50% / .09)" stroke="hsl(210 70% 62% / .38)"/><text x="342.0" y="328.0" text-anchor="middle" fill="#eef0fa">前向收益</text></g><g class="g-node" data-node="winsorize" data-layer="align" tabindex="0" role="button"><rect x="258.0" y="445.0" width="168" height="34" rx="9" fill="hsl(210 70% 50% / .09)" stroke="hsl(210 70% 62% / .38)"/><text x="342.0" y="466.0" text-anchor="middle" fill="#eef0fa">winsorize</text></g><g class="g-node" data-node="zscore" data-layer="align" tabindex="0" role="button"><rect x="258.0" y="491.0" width="168" height="34" rx="9" fill="hsl(210 70% 50% / .09)" stroke="hsl(210 70% 62% / .38)"/><text x="342.0" y="512.0" text-anchor="middle" fill="#eef0fa">zscore</text></g><g class="g-node" data-node="neutralize" data-layer="align" tabindex="0" role="button"><rect x="258.0" y="353.0" width="168" height="34" rx="9" fill="hsl(210 70% 50% / .09)" stroke="hsl(210 70% 62% / .38)"/><text x="342.0" y="374.0" text-anchor="middle" fill="#eef0fa">neutralize</text></g><g class="g-node emph" data-node="rank" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="491.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .18)" stroke="hsl(258 70% 62% / .70)"/><circle class="g-guarddot" cx="649.0" cy="500.0" r="3" fill="hsl(190 90% 60%)"/><text x="574.0" y="512.0" text-anchor="middle" fill="#eef0fa">rank</text></g><g class="g-node" data-node="cs_rank" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="215.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .09)" stroke="hsl(258 70% 62% / .38)"/><text x="574.0" y="236.0" text-anchor="middle" fill="#eef0fa">cs_rank</text></g><g class="g-node" data-node="ts_mean" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="353.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .09)" stroke="hsl(258 70% 62% / .38)"/><text x="574.0" y="374.0" text-anchor="middle" fill="#eef0fa">ts_mean</text></g><g class="g-node" data-node="ts_std" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="445.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .09)" stroke="hsl(258 70% 62% / .38)"/><text x="574.0" y="466.0" text-anchor="middle" fill="#eef0fa">ts_std</text></g><g class="g-node emph" data-node="delay" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="399.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .18)" stroke="hsl(258 70% 62% / .70)"/><circle class="g-guarddot" cx="649.0" cy="408.0" r="3" fill="hsl(190 90% 60%)"/><text x="574.0" y="420.0" text-anchor="middle" fill="#eef0fa">delay</text></g><g class="g-node" data-node="delta" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="261.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .09)" stroke="hsl(258 70% 62% / .38)"/><text x="574.0" y="282.0" text-anchor="middle" fill="#eef0fa">delta</text></g><g class="g-node" data-node="safe_div" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="537.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .09)" stroke="hsl(258 70% 62% / .38)"/><circle class="g-guarddot" cx="649.0" cy="546.0" r="3" fill="hsl(190 90% 60%)"/><text x="574.0" y="558.0" text-anchor="middle" fill="#eef0fa">safe_div</text></g><g class="g-node" data-node="signed_log" data-layer="operator" tabindex="0" role="button"><rect x="490.0" y="307.0" width="168" height="34" rx="9" fill="hsl(258 70% 50% / .09)" stroke="hsl(258 70% 62% / .38)"/><text x="574.0" y="328.0" text-anchor="middle" fill="#eef0fa">signed_log</text></g><g class="g-node" data-node="f_value" data-layer="factor" tabindex="0" role="button"><rect x="722.0" y="468.0" width="168" height="34" rx="9" fill="hsl(285 70% 50% / .09)" stroke="hsl(285 70% 62% / .38)"/><text x="806.0" y="489.0" text-anchor="middle" fill="#eef0fa">价值</text></g><g class="g-node" data-node="f_quality" data-layer="factor" tabindex="0" role="button"><rect x="722.0" y="422.0" width="168" height="34" rx="9" fill="hsl(285 70% 50% / .09)" stroke="hsl(285 70% 62% / .38)"/><text x="806.0" y="443.0" text-anchor="middle" fill="#eef0fa">质量</text></g><g class="g-node" data-node="f_momentum" data-layer="factor" tabindex="0" role="button"><rect x="722.0" y="376.0" width="168" height="34" rx="9" fill="hsl(285 70% 50% / .09)" stroke="hsl(285 70% 62% / .38)"/><text x="806.0" y="397.0" text-anchor="middle" fill="#eef0fa">动量</text></g><g class="g-node" data-node="f_lowvol" data-layer="factor" tabindex="0" role="button"><rect x="722.0" y="330.0" width="168" height="34" rx="9" fill="hsl(285 70% 50% / .09)" stroke="hsl(285 70% 62% / .38)"/><text x="806.0" y="351.0" text-anchor="middle" fill="#eef0fa">低波动</text></g><g class="g-node" data-node="f_liquidity" data-layer="factor" tabindex="0" role="button"><rect x="722.0" y="284.0" width="168" height="34" rx="9" fill="hsl(285 70% 50% / .09)" stroke="hsl(285 70% 62% / .38)"/><text x="806.0" y="305.0" text-anchor="middle" fill="#eef0fa">流动性</text></g><g class="g-node emph" data-node="rank_ic" data-layer="metric" tabindex="0" role="button"><rect x="954.0" y="353.0" width="168" height="34" rx="9" fill="hsl(320 70% 50% / .18)" stroke="hsl(320 70% 62% / .70)"/><circle class="g-guarddot" cx="1113.0" cy="362.0" r="3" fill="hsl(190 90% 60%)"/><text x="1038.0" y="374.0" text-anchor="middle" fill="#eef0fa">Rank IC</text></g><g class="g-node" data-node="ic_ir" data-layer="metric" tabindex="0" role="button"><rect x="954.0" y="491.0" width="168" height="34" rx="9" fill="hsl(320 70% 50% / .09)" stroke="hsl(320 70% 62% / .38)"/><text x="1038.0" y="512.0" text-anchor="middle" fill="#eef0fa">ICIR</text></g><g class="g-node" data-node="quantile_ret" data-layer="metric" tabindex="0" role="button"><rect x="954.0" y="307.0" width="168" height="34" rx="9" fill="hsl(320 70% 50% / .09)" stroke="hsl(320 70% 62% / .38)"/><text x="1038.0" y="328.0" text-anchor="middle" fill="#eef0fa">分组收益</text></g><g class="g-node" data-node="long_short" data-layer="metric" tabindex="0" role="button"><rect x="954.0" y="261.0" width="168" height="34" rx="9" fill="hsl(320 70% 50% / .09)" stroke="hsl(320 70% 62% / .38)"/><text x="1038.0" y="282.0" text-anchor="middle" fill="#eef0fa">多空收益</text></g><g class="g-node" data-node="turnover" data-layer="metric" tabindex="0" role="button"><rect x="954.0" y="399.0" width="168" height="34" rx="9" fill="hsl(320 70% 50% / .09)" stroke="hsl(320 70% 62% / .38)"/><circle class="g-guarddot" cx="1113.0" cy="408.0" r="3" fill="hsl(190 90% 60%)"/><text x="1038.0" y="420.0" text-anchor="middle" fill="#eef0fa">换手率</text></g><g class="g-node emph" data-node="net_ret" data-layer="metric" tabindex="0" role="button"><rect x="954.0" y="445.0" width="168" height="34" rx="9" fill="hsl(320 70% 50% / .18)" stroke="hsl(320 70% 62% / .70)"/><circle class="g-guarddot" cx="1113.0" cy="454.0" r="3" fill="hsl(190 90% 60%)"/><text x="1038.0" y="466.0" text-anchor="middle" fill="#eef0fa">成本后收益</text></g></g></svg></div>
+      <p class="graph-hint" data-graph-hint>← 左右滑动查看完整图 →</p>
+    </div>
+    <aside class="trace" data-trace hidden>
+    <button type="button" class="trace-close" data-trace-close aria-label="关闭">×</button>
+    <span class="trace-layer" data-trace-layer></span>
+    <h3 data-trace-title></h3>
+    <p class="trace-one" data-trace-one></p>
+    <div class="trace-guards" data-trace-guards></div>
+    <div class="trace-chain" data-trace-chain></div>
+    <div class="trace-refs" data-trace-refs></div>
+    </aside>
+  </div>
+</section>
 <section id="showcase" class="showcase-wrap">
   <div class="section-label"><span>成果</span><em>1 项</em></div>
   <p class="showcase-lede">方法与系统已就位，真结果在路上。以下链接均指向仓库最新版本。</p>
@@ -433,14 +548,17 @@ universe      date, code                                    ← 历史成分股,
 <article class="sc-card reveal" id="sc-paper">
   <header>
     <span class="kind">论文</span>
-    <span class="status">早期草稿 · 持续追加中</span>
+    <span class="status">初步实证 · 持续追加中</span>
   </header>
   <h3>短论文 · 可解释 Alpha 因子生成智能体</h3>
   <p class="sc-summary">论证一件事:让 LLM 提假设、让确定性代码裁决真伪,因子的&quot;可解释&quot;就能从自然语言的经济故事, 变成一条可一路回溯到具体字段与有限算子的可审计链路。</p>
-  <p class="note">当前实验全部跑在合成数据上,只用于验证工程链路(防前视、样本外划分、指标计算、报告落盘)的正确性, 其中的 IC 数值不具备经济含义,不代表任何真实市场结论。</p>
-  <details class="menu"><summary>目录:这篇讲了什么（9 节）</summary><ol><li>引言</li><li>相关工作与定位</li><li>系统架构</li><li>数据契约与点时间对齐</li><li>方法(受限表达式引擎 / 基线因子 / 回测指标 / Agent 闭环)</li><li>实验:合成数据下的工程验证</li><li>可复现性声明</li><li>讨论、局限与后续工作</li><li>结论</li></ol></details>
+  <p class="note">实验用聚源 JYDB 真实数据(2020–2021),但只覆盖两年、股票池为行情观测构造, 尚未纳入停牌涨跌停 ST 过滤、行业中性化与完整复权。结果定位为「初步实证与系统验收」, 不是稳健的 alpha 发现 —— 单次运行不构成跨年份结论。</p>
+  <details class="menu"><summary>目录:这篇讲了什么（9 节）</summary><ol><li>引言</li><li>相关工作与定位</li><li>系统架构</li><li>数据契约与点时间对齐</li><li>方法(受限表达式引擎 / 基线因子 / 回测指标 / Agent 闭环)</li><li>实验:聚源真实数据下的初步实证</li><li>可复现性声明</li><li>讨论、局限与后续工作</li><li>结论</li></ol></details>
   <p class="sc-body">站内是我选定的快照版本;论文在仓库里持续追加,想看最新进展的直接进仓库。</p>
-  <div class="go-row"><a class="go primary" href="/paper.pdf" target="_blank" rel="noopener">阅读论文<em class="stamp">2026-07-21</em></a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf" target="_blank" rel="noopener">仓库最新版</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.tex" target="_blank" rel="noopener">LaTeX 源码</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent" target="_blank" rel="noopener">代码仓库</a></div>
+  <div class="go-row"><button type="button" class="go primary" data-embed="/paper.pdf" aria-expanded="false">站内阅读<em class="stamp">2026-07-21</em></button><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf" target="_blank" rel="noopener">仓库最新版</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.tex" target="_blank" rel="noopener">LaTeX 源码</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent" target="_blank" rel="noopener">代码仓库</a></div><div class="embed" data-embed-wrap hidden>
+    <iframe data-embed-frame title="短论文 · 可解释 Alpha 因子生成智能体" loading="lazy"></iframe>
+    <p class="embed-fallback">看不到内容?<a href="/paper.pdf" target="_blank" rel="noopener">在新标签打开</a>(部分手机浏览器不支持内嵌 PDF)。</p>
+  </div>
 </article>
   </div>
 </section>
@@ -524,6 +642,146 @@ universe      date, code                                    ← 历史成分股,
   </a>
 </footer>
 <script>
+var GRAPH_DATA = {"layers":["field","align","operator","factor","metric"],"layerLabels":{"field":"原始字段","align":"对齐与预处理","operator":"白名单算子","factor":"因子类别","metric":"评价指标"},"nodes":{"close":{"label":"close","layer":"field","one":"前复权收盘价,一切收益计算的基准。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"amount":{"label":"amount","layer":"field","one":"成交额,流动性与交易拥挤度的度量基础。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"vol":{"label":"vol","layer":"field","one":"成交量。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"adj_factor":{"label":"adj_factor","layer":"field","one":"复权因子。不复权就会把分红送股当成暴跌,收益序列直接失真。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"mktcap":{"label":"mktcap","layer":"field","one":"市值。既参与流动性因子,也是中性化要剥离的风格暴露。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"industry":{"label":"industry","layer":"field","one":"行业分类。中性化时用来剥离行业共性,免得因子只是在赌行业。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"ann_date":{"label":"ann_date","layer":"field","one":"财报公告日。因子在 T 日只能用 ann_date ≤ T 的记录 —— 整个防前视体系的锚点。","refs":["docs/DATA_SCHEMA.md","src/utils/align.py"],"guards":[{"label":"防 look-ahead","one":"因子在 T 日只能使用 ann_date ≤ T 的数据;财报按公告日对齐,不按报告期。"}]},"report_period":{"label":"report_period","layer":"field","one":"报告期截止日。用它对齐是经典错误:报告期结束时财报还没公布,等于偷看未来。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"eps":{"label":"eps","layer":"field","one":"每股收益。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"book_value_per_share":{"label":"book_value_per_share","layer":"field","one":"每股净资产。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"net_income":{"label":"net_income","layer":"field","one":"净利润。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"total_equity":{"label":"total_equity","layer":"field","one":"股东权益。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"total_assets":{"label":"total_assets","layer":"field","one":"总资产。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"operating_cash_flow":{"label":"operating_cash_flow","layer":"field","one":"经营现金流。","refs":["docs/DATA_SCHEMA.md"],"guards":[]},"universe":{"label":"universe","layer":"field","one":"历史成分股。用当前成分股回溯历史会产生幸存者偏差 —— 退市的失败者被悄悄删掉了。","refs":["docs/DATA_SCHEMA.md"],"guards":[{"label":"防幸存者偏差","one":"用历史成分股而非当前成分股,免得退市的失败者被悄悄删掉。"}]},"pit_merge":{"label":"pit_merge","layer":"align","one":"点时间合并。只把 ann_date ≤ T 的财报并入 T 日面板,是整个系统防前视的核心闸门。","refs":["src/utils/align.py","tests/test_align.py"],"guards":[{"label":"防 look-ahead","one":"因子在 T 日只能使用 ann_date ≤ T 的数据;财报按公告日对齐,不按报告期。"}]},"adj_price":{"label":"前复权价","layer":"align","one":"用 adj_factor 把价格序列还原成可比口径,再算收益。","refs":["src/utils/data_loader.py"],"guards":[]},"fwd_ret":{"label":"前向收益","layer":"align","one":"T 日因子对应的是 T 之后的收益 —— 因子在左、答案在右,这个错位就是预测。","refs":["src/utils/data_loader.py"],"guards":[]},"winsorize":{"label":"winsorize","layer":"align","one":"缩尾。极端值会让排序和回归被少数几只票绑架。","refs":["src/utils/align.py"],"guards":[]},"zscore":{"label":"zscore","layer":"align","one":"标准化,让不同量纲的因子可比、可加权。","refs":["src/utils/align.py"],"guards":[]},"neutralize":{"label":"neutralize","layer":"align","one":"行业市值中性化。剥掉行业与规模的共性,剩下的才是这个因子自己的信息。","refs":["src/utils/align.py"],"guards":[]},"rank":{"label":"rank","layer":"operator","one":"截面排序。因子投资问的是\"今天谁比谁强\",不是\"明天涨到多少\"。","refs":["src/factors/engine.py"],"guards":[{"label":"受限 AST","one":"只允许白名单算子,函数调用/属性访问/下标在解析期即被拒绝 —— 禁止任意代码执行。"}]},"cs_rank":{"label":"cs_rank","layer":"operator","one":"按日期分组的截面排序。","refs":["src/factors/engine.py"],"guards":[]},"ts_mean":{"label":"ts_mean","layer":"operator","one":"时序均值,用于平滑与构造趋势。","refs":["src/factors/engine.py"],"guards":[]},"ts_std":{"label":"ts_std","layer":"operator","one":"时序标准差,波动率类因子的骨架。","refs":["src/factors/engine.py"],"guards":[]},"delay":{"label":"delay","layer":"operator","one":"滞后。缺了它,因子就会用上当天尚未收盘的信息 —— 校验层专门查这一条。","refs":["src/factors/engine.py","src/agents/validate.py"],"guards":[{"label":"防 look-ahead","one":"因子在 T 日只能使用 ann_date ≤ T 的数据;财报按公告日对齐,不按报告期。"},{"label":"受限 AST","one":"只允许白名单算子,函数调用/属性访问/下标在解析期即被拒绝 —— 禁止任意代码执行。"}]},"delta":{"label":"delta","layer":"operator","one":"差分,刻画变化而非水平。","refs":["src/factors/engine.py"],"guards":[]},"safe_div":{"label":"safe_div","layer":"operator","one":"防零除的安全除法,一切比率型因子的地基。","refs":["src/factors/engine.py"],"guards":[{"label":"受限 AST","one":"只允许白名单算子,函数调用/属性访问/下标在解析期即被拒绝 —— 禁止任意代码执行。"}]},"signed_log":{"label":"signed_log","layer":"operator","one":"保号对数,压缩长尾又不丢方向。","refs":["src/factors/engine.py"],"guards":[]},"f_value":{"label":"价值","layer":"factor","one":"盈利收益率与账面市值比更高的公司可能包含价值溢价。","refs":["src/factors/baseline.py"],"guards":[]},"f_quality":{"label":"质量","layer":"factor","one":"ROE 更高的公司通常具有更强盈利质量与资本使用效率。","refs":["src/factors/baseline.py"],"guards":[]},"f_momentum":{"label":"动量","layer":"factor","one":"过去一个月表现更强的股票可能延续短期趋势。","refs":["src/factors/baseline.py"],"guards":[]},"f_lowvol":{"label":"低波动","layer":"factor","one":"低波动股票可能有更稳定的风险调整收益。","refs":["src/factors/baseline.py"],"guards":[]},"f_liquidity":{"label":"流动性","layer":"factor","one":"成交额占市值较低,可近似表示交易拥挤度较低或存在流动性风险补偿。","refs":["src/factors/baseline.py"],"guards":[]},"rank_ic":{"label":"Rank IC","layer":"metric","one":"逐日算因子排名与前向收益排名的秩相关 —— 评价的是横截面排序能力,不是时序拟合优度。","refs":["src/backtest/metrics.py"],"guards":[{"label":"样本外按日期滚动","one":"train_end 之后统一作为样本外区间,禁止随机打乱,以杜绝跨期信息混入。"}]},"ic_ir":{"label":"ICIR","layer":"metric","one":"Rank IC 的均值除以其标准差。问的不是\"某天准不准\",而是\"稳不稳\"。","refs":["src/backtest/metrics.py"],"guards":[]},"quantile_ret":{"label":"分组收益","layer":"metric","one":"按因子值分成 N 组看收益是否单调 —— 单调性比单点收益更能说明因子真在起作用。","refs":["src/backtest/metrics.py"],"guards":[]},"long_short":{"label":"多空收益","layer":"metric","one":"最高组减最低组的收益。","refs":["src/backtest/metrics.py"],"guards":[]},"turnover":{"label":"换手率","layer":"metric","one":"持仓权重的逐期变动。换手越高,信号被交易成本吃掉的越多。","refs":["src/backtest/metrics.py"],"guards":[{"label":"成本后裁决","one":"所有收益结论一律以扣除 turnover×cost_bps 之后的口径为准。"}]},"net_ret":{"label":"成本后收益","layer":"metric","one":"多空收益减去换手率×cost_bps。纸面上赚钱和扣完成本还赚钱是两回事。","refs":["src/backtest/runner.py"],"guards":[{"label":"样本外按日期滚动","one":"train_end 之后统一作为样本外区间,禁止随机打乱,以杜绝跨期信息混入。"},{"label":"成本后裁决","one":"所有收益结论一律以扣除 turnover×cost_bps 之后的口径为准。"}]}},"edges":[{"f":"ann_date","t":"pit_merge","k":"computes"},{"f":"report_period","t":"pit_merge","k":"computes"},{"f":"close","t":"adj_price","k":"computes"},{"f":"adj_factor","t":"adj_price","k":"computes"},{"f":"adj_price","t":"fwd_ret","k":"computes"},{"f":"industry","t":"neutralize","k":"computes"},{"f":"mktcap","t":"neutralize","k":"computes"},{"f":"eps","t":"f_value","k":"uses"},{"f":"book_value_per_share","t":"f_value","k":"uses"},{"f":"close","t":"f_value","k":"uses"},{"f":"net_income","t":"f_quality","k":"uses"},{"f":"total_equity","t":"f_quality","k":"uses"},{"f":"close","t":"f_momentum","k":"uses"},{"f":"close","t":"f_lowvol","k":"uses"},{"f":"amount","t":"f_liquidity","k":"uses"},{"f":"mktcap","t":"f_liquidity","k":"uses"},{"f":"pit_merge","t":"f_value","k":"computes"},{"f":"pit_merge","t":"f_quality","k":"computes"},{"f":"adj_price","t":"f_momentum","k":"computes"},{"f":"adj_price","t":"f_lowvol","k":"computes"},{"f":"adj_price","t":"f_liquidity","k":"computes"},{"f":"rank","t":"f_value","k":"computes"},{"f":"safe_div","t":"f_value","k":"computes"},{"f":"rank","t":"f_quality","k":"computes"},{"f":"safe_div","t":"f_quality","k":"computes"},{"f":"rank","t":"f_momentum","k":"computes"},{"f":"delay","t":"f_momentum","k":"computes"},{"f":"safe_div","t":"f_momentum","k":"computes"},{"f":"rank","t":"f_lowvol","k":"computes"},{"f":"ts_std","t":"f_lowvol","k":"computes"},{"f":"delay","t":"f_lowvol","k":"computes"},{"f":"safe_div","t":"f_lowvol","k":"computes"},{"f":"rank","t":"f_liquidity","k":"computes"},{"f":"delay","t":"f_liquidity","k":"computes"},{"f":"safe_div","t":"f_liquidity","k":"computes"},{"f":"winsorize","t":"f_value","k":"computes"},{"f":"zscore","t":"f_value","k":"computes"},{"f":"neutralize","t":"f_value","k":"computes"},{"f":"neutralize","t":"f_quality","k":"computes"},{"f":"f_value","t":"rank_ic","k":"computes"},{"f":"f_quality","t":"rank_ic","k":"computes"},{"f":"f_momentum","t":"rank_ic","k":"computes"},{"f":"f_lowvol","t":"rank_ic","k":"computes"},{"f":"f_liquidity","t":"rank_ic","k":"computes"},{"f":"fwd_ret","t":"rank_ic","k":"computes"},{"f":"fwd_ret","t":"quantile_ret","k":"computes"},{"f":"f_value","t":"quantile_ret","k":"computes"},{"f":"f_quality","t":"quantile_ret","k":"computes"},{"f":"f_momentum","t":"quantile_ret","k":"computes"},{"f":"f_lowvol","t":"quantile_ret","k":"computes"},{"f":"f_liquidity","t":"quantile_ret","k":"computes"},{"f":"f_value","t":"turnover","k":"computes"},{"f":"f_quality","t":"turnover","k":"computes"},{"f":"f_momentum","t":"turnover","k":"computes"},{"f":"f_lowvol","t":"turnover","k":"computes"},{"f":"f_liquidity","t":"turnover","k":"computes"},{"f":"rank_ic","t":"ic_ir","k":"derives"},{"f":"quantile_ret","t":"long_short","k":"derives"},{"f":"long_short","t":"net_ret","k":"derives"},{"f":"turnover","t":"net_ret","k":"derives"}]};
+
+// 方法依赖图:点节点 → 高亮全部上游祖先 + 回溯面板(ADR-0019)
+(function () {
+  if (!window.GRAPH_DATA) return;
+  var G = window.GRAPH_DATA;
+  var svg = document.getElementById('graph-svg');
+  var panel = document.querySelector('[data-trace]');
+  var stage = document.querySelector('.graph-stage');
+  if (!svg || !panel) return;
+
+  var preds = {};
+  G.edges.forEach(function (e) { (preds[e.t] = preds[e.t] || []).push(e.f); });
+
+  function ancestors(id) {
+    var seen = {}, stack = (preds[id] || []).slice();
+    while (stack.length) {
+      var cur = stack.pop();
+      if (seen[cur]) continue;
+      seen[cur] = 1;
+      (preds[cur] || []).forEach(function (p) { stack.push(p); });
+    }
+    return seen;
+  }
+
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  function reset() {
+    svg.querySelectorAll('.g-node, .g-edge').forEach(function (el) {
+      el.classList.remove('lit'); el.classList.remove('dim');
+    });
+    panel.hidden = true;
+    if (stage) stage.classList.remove('with-panel');
+  }
+
+  function select(id) {
+    var lit = ancestors(id);
+    lit[id] = 1;
+    svg.querySelectorAll('.g-node').forEach(function (el) {
+      var on = lit[el.dataset.node];
+      el.classList.toggle('lit', !!on);
+      el.classList.toggle('dim', !on);
+    });
+    svg.querySelectorAll('.g-edge').forEach(function (el) {
+      var on = lit[el.dataset.from] && lit[el.dataset.to];
+      el.classList.toggle('lit', !!on);
+      el.classList.toggle('dim', !on);
+    });
+
+    var node = G.nodes[id];
+    panel.querySelector('[data-trace-layer]').textContent = G.layerLabels[node.layer] || node.layer;
+    panel.querySelector('[data-trace-title]').textContent = node.label;
+    panel.querySelector('[data-trace-one]').textContent = node.one;
+
+    panel.querySelector('[data-trace-guards]').innerHTML = (node.guards || []).map(function (g) {
+      return '<div class="tg"><strong>' + esc(g.label) + '</strong><span>' + esc(g.one) + '</span></div>';
+    }).join('');
+
+    // 上游链路:按层分组、逐层缩进,一直列到原始字段
+    var chain = '';
+    var total = 0;
+    G.layers.forEach(function (layerId) {
+      var members = Object.keys(lit).filter(function (n) {
+        return n !== id && G.nodes[n] && G.nodes[n].layer === layerId;
+      }).sort();
+      if (!members.length) return;
+      total += members.length;
+      chain += '<div class="tc-layer"><span class="tc-name">' + esc(G.layerLabels[layerId]) + '</span>'
+        + '<div class="tc-items">' + members.map(function (n) {
+          return '<code>' + esc(G.nodes[n].label) + '</code>';
+        }).join('') + '</div></div>';
+    });
+    panel.querySelector('[data-trace-chain]').innerHTML = total
+      ? '<p class="tc-head">上游依赖 ' + total + ' 项 —— 一路回溯到原始字段</p>' + chain
+      : '<p class="tc-head">这是链路起点:原始字段,没有上游。</p>';
+
+    panel.querySelector('[data-trace-refs]').innerHTML = (node.refs || []).length
+      ? '<span class="tr-label">代码位置</span>' + node.refs.map(function (r) {
+          return '<code>' + esc(r) + '</code>';
+        }).join('')
+      : '';
+
+    panel.hidden = false;
+    if (stage) stage.classList.add('with-panel');
+    keepVisible(id);
+  }
+
+  // 选中的节点常在右侧列、正好在横向滚动区之外 —— 把它带进视野
+  function keepVisible(id) {
+    var sc = document.querySelector('[data-graph-scroll]');
+    var el = svg.querySelector('.g-node[data-node="' + id + '"]');
+    if (!sc || !el || sc.scrollWidth <= sc.clientWidth) return;
+    var er = el.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+    var pad = 24;
+    if (er.right > sr.right - pad) sc.scrollLeft += er.right - sr.right + pad;
+    else if (er.left < sr.left + pad) sc.scrollLeft -= sr.left + pad - er.left;
+  }
+
+  svg.querySelectorAll('.g-node').forEach(function (el) {
+    el.addEventListener('click', function () { select(el.dataset.node); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(el.dataset.node); }
+    });
+  });
+  svg.addEventListener('click', function (e) { if (e.target === svg) reset(); });
+  panel.querySelector('[data-trace-close]').addEventListener('click', reset);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') reset(); });
+
+  // 图比屏幕宽时才提示可横向滑动
+  var scroller = document.querySelector('[data-graph-scroll]');
+  var hint = document.querySelector('[data-graph-hint]');
+  function syncHint() {
+    if (scroller && hint) hint.style.display = scroller.scrollWidth > scroller.clientWidth + 4 ? '' : 'none';
+  }
+  syncHint();
+  window.addEventListener('resize', syncHint);
+})();
+
+
+// 站内阅读:iframe 懒加载,点开才请求(574KB 的 PDF 不该拖慢首屏)
+document.querySelectorAll('[data-embed]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var card = btn.closest('.sc-card');
+    var wrap = card && card.querySelector('[data-embed-wrap]');
+    if (!wrap) return;
+    var frame = wrap.querySelector('[data-embed-frame]');
+    var opening = wrap.hidden;
+    if (opening && frame && !frame.getAttribute('src')) {
+      frame.setAttribute('src', btn.dataset.embed + '#view=FitH');
+    }
+    wrap.hidden = !opening;
+    btn.setAttribute('aria-expanded', String(opening));
+    btn.classList.toggle('open', opening);
+    if (opening) wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+});
 
 // 复制转发文案
 document.querySelectorAll('.copy').forEach(function (btn) {
@@ -592,8 +850,9 @@ if (form) {
       var labels = (item.labels || []).filter(function (name) { return name !== 'intake'; })
         .map(function (name) { return '<span class="mini-label">' + escapeHtml(name) + '</span>'; }).join('');
       if (item.milestone) labels += '<span class="mini-label milestone">' + escapeHtml(item.milestone) + '</span>';
+      var receiptLabel = item.receipt && item.receipt.kind === 'comment' ? '回复' : '回执';
       var receipt = item.receipt && item.receipt.summary
-        ? '<a class="receipt" href="' + escapeHtml(item.receipt.url || item.url) + '" target="_blank" rel="noopener">回执:' + escapeHtml(item.receipt.summary) + '</a>'
+        ? '<a class="receipt" href="' + escapeHtml(item.receipt.url || item.url) + '" target="_blank" rel="noopener">' + receiptLabel + ':' + escapeHtml(item.receipt.summary) + '</a>'
         : '';
       var state = item.state === 'closed' ? '已关闭' : '处理中';
       return '<div class="issue-item">'

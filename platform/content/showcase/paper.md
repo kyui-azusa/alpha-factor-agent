@@ -4,20 +4,21 @@ kind: paper
 order: 10
 public: true
 title: 短论文 · 可解释 Alpha 因子生成智能体
-status: 早期草稿 · 持续追加中
+status: 初步实证 · 持续追加中
 summary: >-
   论证一件事:让 LLM 提假设、让确定性代码裁决真伪,因子的"可解释"就能从自然语言的经济故事,
   变成一条可一路回溯到具体字段与有限算子的可审计链路。
 note: >-
-  当前实验全部跑在合成数据上,只用于验证工程链路(防前视、样本外划分、指标计算、报告落盘)的正确性,
-  其中的 IC 数值不具备经济含义,不代表任何真实市场结论。
+  实验用聚源 JYDB 真实数据(2020–2021),但只覆盖两年、股票池为行情观测构造,
+  尚未纳入停牌涨跌停 ST 过滤、行业中性化与完整复权。结果定位为「初步实证与系统验收」,
+  不是稳健的 alpha 发现 —— 单次运行不构成跨年份结论。
 sections:
   - 引言
   - 相关工作与定位
   - 系统架构
   - 数据契约与点时间对齐
   - 方法(受限表达式引擎 / 基线因子 / 回测指标 / Agent 闭环)
-  - 实验:合成数据下的工程验证
+  - 实验:聚源真实数据下的初步实证
   - 可复现性声明
   - 讨论、局限与后续工作
   - 结论
@@ -25,10 +26,11 @@ snapshot:
   src: paper/main.pdf
   as: paper.pdf
 links:
-  - label: 阅读论文
+  - label: 站内阅读
     href: /paper.pdf
     primary: true
     stamp: snapshot
+    mode: embed
   - label: 仓库最新版
     href: https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf
   - label: LaTeX 源码

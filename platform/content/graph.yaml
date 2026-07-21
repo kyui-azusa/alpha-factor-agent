@@ -1,0 +1,362 @@
+# 方法依赖图 —— 论文"可解释性可一路回溯到具体字段与有限算子"的可视化证据(ADR-0019)。
+#
+# 维护规则:
+#   - 手写,不从代码自动抽取(自动抽会把不想公开的字段与真因子一并搬上来)。
+#   - factor 层只放类别与基线因子名,**不放任何具体因子表达式**。
+#   - code_symbol 必须真实存在于代码中,由 tests/test_graph_sync.py 单向校验(图 ⊆ 代码)。
+#   - 图允许有意省略,不允许凭空捏造。
+
+layers:
+  - id: field
+    label: 原始字段
+    note: 三张表的列,一切数值的起点
+  - id: align
+    label: 对齐与预处理
+    note: 决定 T 日能看见什么
+  - id: operator
+    label: 白名单算子
+    note: 受限 AST,禁止任意代码执行
+  - id: factor
+    label: 因子类别
+    note: 只到类别,不含表达式
+  - id: metric
+    label: 评价指标
+    note: 全部由确定性代码计算
+
+nodes:
+  # ---------- 原始字段 ----------
+  - id: close
+    layer: field
+    label: close
+    one_liner: 前复权收盘价,一切收益计算的基准。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: amount
+    layer: field
+    label: amount
+    one_liner: 成交额,流动性与交易拥挤度的度量基础。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: vol
+    layer: field
+    label: vol
+    one_liner: 成交量。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: adj_factor
+    layer: field
+    label: adj_factor
+    one_liner: 复权因子。不复权就会把分红送股当成暴跌,收益序列直接失真。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: mktcap
+    layer: field
+    label: mktcap
+    one_liner: 市值。既参与流动性因子,也是中性化要剥离的风格暴露。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: industry
+    layer: field
+    label: industry
+    one_liner: 行业分类。中性化时用来剥离行业共性,免得因子只是在赌行业。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: ann_date
+    layer: field
+    label: ann_date
+    one_liner: 财报公告日。因子在 T 日只能用 ann_date ≤ T 的记录 —— 整个防前视体系的锚点。
+    refs: [docs/DATA_SCHEMA.md, src/utils/align.py]
+    emphasis: true
+  - id: report_period
+    layer: field
+    label: report_period
+    one_liner: 报告期截止日。用它对齐是经典错误:报告期结束时财报还没公布,等于偷看未来。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: eps
+    layer: field
+    label: eps
+    one_liner: 每股收益。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: book_value_per_share
+    layer: field
+    label: book_value_per_share
+    one_liner: 每股净资产。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: net_income
+    layer: field
+    label: net_income
+    one_liner: 净利润。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: total_equity
+    layer: field
+    label: total_equity
+    one_liner: 股东权益。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: total_assets
+    layer: field
+    label: total_assets
+    one_liner: 总资产。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: operating_cash_flow
+    layer: field
+    label: operating_cash_flow
+    one_liner: 经营现金流。
+    refs: [docs/DATA_SCHEMA.md]
+  - id: universe
+    layer: field
+    label: universe
+    one_liner: 历史成分股。用当前成分股回溯历史会产生幸存者偏差 —— 退市的失败者被悄悄删掉了。
+    refs: [docs/DATA_SCHEMA.md]
+
+  # ---------- 对齐与预处理 ----------
+  - id: pit_merge
+    layer: align
+    label: pit_merge
+    one_liner: 点时间合并。只把 ann_date ≤ T 的财报并入 T 日面板,是整个系统防前视的核心闸门。
+    refs: [src/utils/align.py, tests/test_align.py]
+    code_symbol: pit_merge
+    emphasis: true
+  - id: adj_price
+    layer: align
+    label: 前复权价
+    one_liner: 用 adj_factor 把价格序列还原成可比口径,再算收益。
+    refs: [src/utils/data_loader.py]
+  - id: fwd_ret
+    layer: align
+    label: 前向收益
+    one_liner: T 日因子对应的是 T 之后的收益 —— 因子在左、答案在右,这个错位就是预测。
+    refs: [src/utils/data_loader.py]
+    code_symbol: get_forward_returns
+  - id: winsorize
+    layer: align
+    label: winsorize
+    one_liner: 缩尾。极端值会让排序和回归被少数几只票绑架。
+    refs: [src/utils/align.py]
+    code_symbol: winsorize
+  - id: zscore
+    layer: align
+    label: zscore
+    one_liner: 标准化,让不同量纲的因子可比、可加权。
+    refs: [src/utils/align.py]
+    code_symbol: zscore
+  - id: neutralize
+    layer: align
+    label: neutralize
+    one_liner: 行业市值中性化。剥掉行业与规模的共性,剩下的才是这个因子自己的信息。
+    refs: [src/utils/align.py]
+    code_symbol: neutralize
+
+  # ---------- 白名单算子 ----------
+  - id: rank
+    layer: operator
+    label: rank
+    one_liner: 截面排序。因子投资问的是"今天谁比谁强",不是"明天涨到多少"。
+    refs: [src/factors/engine.py]
+    code_symbol: rank
+    emphasis: true
+  - id: cs_rank
+    layer: operator
+    label: cs_rank
+    one_liner: 按日期分组的截面排序。
+    refs: [src/factors/engine.py]
+    code_symbol: cs_rank
+  - id: ts_mean
+    layer: operator
+    label: ts_mean
+    one_liner: 时序均值,用于平滑与构造趋势。
+    refs: [src/factors/engine.py]
+    code_symbol: ts_mean
+  - id: ts_std
+    layer: operator
+    label: ts_std
+    one_liner: 时序标准差,波动率类因子的骨架。
+    refs: [src/factors/engine.py]
+    code_symbol: ts_std
+  - id: delay
+    layer: operator
+    label: delay
+    one_liner: 滞后。缺了它,因子就会用上当天尚未收盘的信息 —— 校验层专门查这一条。
+    refs: [src/factors/engine.py, src/agents/validate.py]
+    code_symbol: delay
+    emphasis: true
+  - id: delta
+    layer: operator
+    label: delta
+    one_liner: 差分,刻画变化而非水平。
+    refs: [src/factors/engine.py]
+    code_symbol: delta
+  - id: safe_div
+    layer: operator
+    label: safe_div
+    one_liner: 防零除的安全除法,一切比率型因子的地基。
+    refs: [src/factors/engine.py]
+    code_symbol: safe_div
+  - id: signed_log
+    layer: operator
+    label: signed_log
+    one_liner: 保号对数,压缩长尾又不丢方向。
+    refs: [src/factors/engine.py]
+    code_symbol: signed_log
+
+  # ---------- 因子类别 ----------
+  - id: f_value
+    layer: factor
+    label: 价值
+    one_liner: 盈利收益率与账面市值比更高的公司可能包含价值溢价。
+    refs: [src/factors/baseline.py]
+    code_symbol: baseline_value_ep_bp
+  - id: f_quality
+    layer: factor
+    label: 质量
+    one_liner: ROE 更高的公司通常具有更强盈利质量与资本使用效率。
+    refs: [src/factors/baseline.py]
+    code_symbol: baseline_quality_roe
+  - id: f_momentum
+    layer: factor
+    label: 动量
+    one_liner: 过去一个月表现更强的股票可能延续短期趋势。
+    refs: [src/factors/baseline.py]
+    code_symbol: baseline_momentum_20d
+  - id: f_lowvol
+    layer: factor
+    label: 低波动
+    one_liner: 低波动股票可能有更稳定的风险调整收益。
+    refs: [src/factors/baseline.py]
+    code_symbol: baseline_low_volatility_20d
+  - id: f_liquidity
+    layer: factor
+    label: 流动性
+    one_liner: 成交额占市值较低,可近似表示交易拥挤度较低或存在流动性风险补偿。
+    refs: [src/factors/baseline.py]
+    code_symbol: baseline_liquidity_turnover
+
+  # ---------- 评价指标 ----------
+  - id: rank_ic
+    layer: metric
+    label: Rank IC
+    one_liner: 逐日算因子排名与前向收益排名的秩相关 —— 评价的是横截面排序能力,不是时序拟合优度。
+    refs: [src/backtest/metrics.py]
+    code_symbol: rank_ic
+    emphasis: true
+  - id: ic_ir
+    layer: metric
+    label: ICIR
+    one_liner: Rank IC 的均值除以其标准差。问的不是"某天准不准",而是"稳不稳"。
+    refs: [src/backtest/metrics.py]
+    code_symbol: ic_ir
+  - id: quantile_ret
+    layer: metric
+    label: 分组收益
+    one_liner: 按因子值分成 N 组看收益是否单调 —— 单调性比单点收益更能说明因子真在起作用。
+    refs: [src/backtest/metrics.py]
+    code_symbol: quantile_returns
+  - id: long_short
+    layer: metric
+    label: 多空收益
+    one_liner: 最高组减最低组的收益。
+    refs: [src/backtest/metrics.py]
+    code_symbol: long_short_return
+  - id: turnover
+    layer: metric
+    label: 换手率
+    one_liner: 持仓权重的逐期变动。换手越高,信号被交易成本吃掉的越多。
+    refs: [src/backtest/metrics.py]
+    code_symbol: turnover
+  - id: net_ret
+    layer: metric
+    label: 成本后收益
+    one_liner: 多空收益减去换手率×cost_bps。纸面上赚钱和扣完成本还赚钱是两回事。
+    refs: [src/backtest/runner.py]
+    emphasis: true
+
+# 横切防线:不占列,渲染成挂在相关节点上的徽章
+guards:
+  - id: no_lookahead
+    label: 防 look-ahead
+    one_liner: 因子在 T 日只能使用 ann_date ≤ T 的数据;财报按公告日对齐,不按报告期。
+    attaches: [ann_date, pit_merge, delay]
+  - id: oos_rolling
+    label: 样本外按日期滚动
+    one_liner: train_end 之后统一作为样本外区间,禁止随机打乱,以杜绝跨期信息混入。
+    attaches: [rank_ic, net_ret]
+  - id: restricted_ast
+    label: 受限 AST
+    one_liner: 只允许白名单算子,函数调用/属性访问/下标在解析期即被拒绝 —— 禁止任意代码执行。
+    attaches: [rank, safe_div, delay]
+  - id: survivorship
+    label: 防幸存者偏差
+    one_liner: 用历史成分股而非当前成分股,免得退市的失败者被悄悄删掉。
+    attaches: [universe]
+  - id: cost_after
+    label: 成本后裁决
+    one_liner: 所有收益结论一律以扣除 turnover×cost_bps 之后的口径为准。
+    attaches: [turnover, net_ret]
+
+edges:
+  # 字段 → 对齐
+  - {from: ann_date, to: pit_merge, kind: computes}
+  - {from: report_period, to: pit_merge, kind: computes}
+  - {from: close, to: adj_price, kind: computes}
+  - {from: adj_factor, to: adj_price, kind: computes}
+  - {from: adj_price, to: fwd_ret, kind: computes}
+  - {from: industry, to: neutralize, kind: computes}
+  - {from: mktcap, to: neutralize, kind: computes}
+
+  # 字段 → 因子(可审计到具体字段:对应 baseline.py 的 fields_used)
+  - {from: eps, to: f_value, kind: uses}
+  - {from: book_value_per_share, to: f_value, kind: uses}
+  - {from: close, to: f_value, kind: uses}
+  - {from: net_income, to: f_quality, kind: uses}
+  - {from: total_equity, to: f_quality, kind: uses}
+  - {from: close, to: f_momentum, kind: uses}
+  - {from: close, to: f_lowvol, kind: uses}
+  - {from: amount, to: f_liquidity, kind: uses}
+  - {from: mktcap, to: f_liquidity, kind: uses}
+
+  # 对齐 → 因子(财报类因子必须经过点时间闸门)
+  - {from: pit_merge, to: f_value, kind: computes}
+  - {from: pit_merge, to: f_quality, kind: computes}
+  - {from: adj_price, to: f_momentum, kind: computes}
+  - {from: adj_price, to: f_lowvol, kind: computes}
+  - {from: adj_price, to: f_liquidity, kind: computes}
+
+  # 算子 → 因子
+  - {from: rank, to: f_value, kind: computes}
+  - {from: safe_div, to: f_value, kind: computes}
+  - {from: rank, to: f_quality, kind: computes}
+  - {from: safe_div, to: f_quality, kind: computes}
+  - {from: rank, to: f_momentum, kind: computes}
+  - {from: delay, to: f_momentum, kind: computes}
+  - {from: safe_div, to: f_momentum, kind: computes}
+  - {from: rank, to: f_lowvol, kind: computes}
+  - {from: ts_std, to: f_lowvol, kind: computes}
+  - {from: delay, to: f_lowvol, kind: computes}
+  - {from: safe_div, to: f_lowvol, kind: computes}
+  - {from: rank, to: f_liquidity, kind: computes}
+  - {from: delay, to: f_liquidity, kind: computes}
+  - {from: safe_div, to: f_liquidity, kind: computes}
+
+  # 预处理 → 因子(可选清洗步骤)
+  - {from: winsorize, to: f_value, kind: computes}
+  - {from: zscore, to: f_value, kind: computes}
+  - {from: neutralize, to: f_value, kind: computes}
+  - {from: neutralize, to: f_quality, kind: computes}
+
+  # 因子 + 前向收益 → 指标
+  - {from: f_value, to: rank_ic, kind: computes}
+  - {from: f_quality, to: rank_ic, kind: computes}
+  - {from: f_momentum, to: rank_ic, kind: computes}
+  - {from: f_lowvol, to: rank_ic, kind: computes}
+  - {from: f_liquidity, to: rank_ic, kind: computes}
+  - {from: fwd_ret, to: rank_ic, kind: computes}
+  - {from: fwd_ret, to: quantile_ret, kind: computes}
+  - {from: f_value, to: quantile_ret, kind: computes}
+  - {from: f_quality, to: quantile_ret, kind: computes}
+  - {from: f_momentum, to: quantile_ret, kind: computes}
+  - {from: f_lowvol, to: quantile_ret, kind: computes}
+  - {from: f_liquidity, to: quantile_ret, kind: computes}
+  - {from: f_value, to: turnover, kind: computes}
+  - {from: f_quality, to: turnover, kind: computes}
+  - {from: f_momentum, to: turnover, kind: computes}
+  - {from: f_lowvol, to: turnover, kind: computes}
+  - {from: f_liquidity, to: turnover, kind: computes}
+
+  # 指标 → 指标(派生)
+  - {from: rank_ic, to: ic_ir, kind: derives}
+  - {from: quantile_ret, to: long_short, kind: derives}
+  - {from: long_short, to: net_ret, kind: derives}
+  - {from: turnover, to: net_ret, kind: derives}

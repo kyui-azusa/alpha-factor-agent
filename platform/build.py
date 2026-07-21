@@ -10,12 +10,15 @@ deploy-static-site skill 上传。工单为页面内结构化表单,POST 同源 
 from __future__ import annotations
 
 import html
+import json
 import shutil
 import urllib.parse
 from datetime import date
 from pathlib import Path
 
 import yaml
+
+import graph as graph_mod
 
 ROOT = Path(__file__).resolve().parent
 PACKETS_DIR = ROOT / "content" / "packets"
@@ -160,19 +163,31 @@ def render_showcase_card(item: dict) -> str:
 
     links = item.get("links") or []
     links_block = ""
+    embed_block = ""
     if links:
         parts = []
         for link in links:
             label = _esc(link.get("label", "打开"))
+            href = _esc(link.get("href", "#"))
+            cls = "go primary" if link.get("primary") else "go"
             # stamp: snapshot → 标签后附快照日期,让访客知道站内读的是哪一版
             if link.get("stamp") == "snapshot" and item.get("snapshot_date"):
                 label += f'<em class="stamp">{_esc(item["snapshot_date"])}</em>'
-            parts.append(
-                f'<a class="{"go primary" if link.get("primary") else "go"}" '
-                f'href="{_esc(link.get("href", "#"))}" target="_blank" rel="noopener">'
-                f"{label}</a>"
-            )
-        links_block = f'<div class="go-row">{"".join(parts)}</div>'
+            # mode: embed → 站内展开阅读(iframe 懒加载,点开才请求,不拖慢首屏)
+            if link.get("mode") == "embed":
+                parts.append(
+                    f'<button type="button" class="{cls}" data-embed="{href}" '
+                    f'aria-expanded="false">{label}</button>'
+                )
+                embed_block = f"""<div class="embed" data-embed-wrap hidden>
+    <iframe data-embed-frame title="{_esc(item.get('title', '文档'))}" loading="lazy"></iframe>
+    <p class="embed-fallback">看不到内容?<a href="{href}" target="_blank" rel="noopener">在新标签打开</a>(部分手机浏览器不支持内嵌 PDF)。</p>
+  </div>"""
+            else:
+                parts.append(
+                    f'<a class="{cls}" href="{href}" target="_blank" rel="noopener">{label}</a>'
+                )
+        links_block = f'<div class="go-row">{"".join(parts)}</div>{embed_block}'
 
     body = item.get("body", "")
     body_block = f'<p class="sc-body">{_esc(body)}</p>' if body else ""
@@ -202,6 +217,43 @@ def render_showcase(items: list[dict]) -> str:
 {cards}
   </div>
 </section>"""
+
+
+def render_graph_section() -> tuple[str, str]:
+    """方法依赖图。返回 (HTML, 喂给 JS 的 JSON)。图不存在时静默跳过。"""
+    if not graph_mod.GRAPH_FILE.exists():
+        return "", ""
+    g = graph_mod.load_graph()
+    if not graph_mod.is_dag(g):
+        raise ValueError("graph.yaml 有环:回溯会死循环")
+    svg = graph_mod.render_svg(g, graph_mod.layout(g))
+    payload = json.dumps(graph_mod.node_payload(g), ensure_ascii=False, separators=(",", ":"))
+    legend = "".join(
+        f'<span class="lg"><i style="background:hsl({graph_mod.LAYER_HUE.get(l["id"], 220)} 70% 62%)"></i>'
+        f'{_esc(l["label"])}</span>'
+        for l in g.layers
+    )
+    html_block = f"""<section id="graph" class="graph-wrap reveal">
+  <div class="section-label"><span>方法依赖图</span><em>{len(g.nodes)} 节点 · {len(g.edges)} 依赖</em></div>
+  <p class="graph-lede">论文说因子的可解释性"可一路回溯到具体字段与有限算子"。<strong>点任意节点,看它的完整上游链路</strong> —— 这张图就是那句话的证据。</p>
+  <div class="graph-legend">{legend}<span class="lg guard"><i></i>带防线的节点</span></div>
+  <div class="graph-stage">
+    <div class="graph-col">
+      <div class="graph-scroll" data-graph-scroll>{svg}</div>
+      <p class="graph-hint" data-graph-hint>← 左右滑动查看完整图 →</p>
+    </div>
+    <aside class="trace" data-trace hidden>
+    <button type="button" class="trace-close" data-trace-close aria-label="关闭">×</button>
+    <span class="trace-layer" data-trace-layer></span>
+    <h3 data-trace-title></h3>
+    <p class="trace-one" data-trace-one></p>
+    <div class="trace-guards" data-trace-guards></div>
+    <div class="trace-chain" data-trace-chain></div>
+    <div class="trace-refs" data-trace-refs></div>
+    </aside>
+  </div>
+</section>"""
+    return html_block, payload
 
 
 def render_form() -> str:
@@ -285,6 +337,7 @@ def render_form() -> str:
 
 
 def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
+    graph_html, graph_data = render_graph_section()
     cards = "\n".join(render_packet_card(p) for p in packets) or "<p>还没有想法卡片。</p>"
     hero = """<section class="hero">
   <span class="eyebrow"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
@@ -314,7 +367,7 @@ def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
 <div class="bg" aria-hidden="true"><div class="aurora"></div><div class="grid-overlay"></div></div>
 <header class="site">
   <a class="brand" href="#top"><span class="logo"></span>Alpha 研学</a>
-  <nav><a href="#feed">想法流</a>{'<a href="#showcase">成果</a>' if showcase else ''}<a href="#submit" class="nav-cta">提问 / 建议</a></nav>
+  <nav><a href="#feed">想法流</a>{'<a href="#graph">方法图</a>' if graph_html else ''}{'<a href="#showcase">成果</a>' if showcase else ''}<a href="#submit" class="nav-cta">提问 / 建议</a></nav>
 </header>
 <main id="top">
 {hero}
@@ -324,6 +377,7 @@ def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
 {cards}
   </div>
 </section>
+{graph_html}
 {render_showcase(showcase)}
 {render_form()}
 </main>
@@ -335,13 +389,155 @@ def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
   </a>
 </footer>
 <script>
+var GRAPH_DATA = {graph_data or "null"};
+{GRAPH_JS}
 {JS}
 </script>
 </body>
 </html>"""
 
 
+GRAPH_JS = """
+// 方法依赖图:点节点 → 高亮全部上游祖先 + 回溯面板(ADR-0019)
+(function () {
+  if (!window.GRAPH_DATA) return;
+  var G = window.GRAPH_DATA;
+  var svg = document.getElementById('graph-svg');
+  var panel = document.querySelector('[data-trace]');
+  var stage = document.querySelector('.graph-stage');
+  if (!svg || !panel) return;
+
+  var preds = {};
+  G.edges.forEach(function (e) { (preds[e.t] = preds[e.t] || []).push(e.f); });
+
+  function ancestors(id) {
+    var seen = {}, stack = (preds[id] || []).slice();
+    while (stack.length) {
+      var cur = stack.pop();
+      if (seen[cur]) continue;
+      seen[cur] = 1;
+      (preds[cur] || []).forEach(function (p) { stack.push(p); });
+    }
+    return seen;
+  }
+
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  function reset() {
+    svg.querySelectorAll('.g-node, .g-edge').forEach(function (el) {
+      el.classList.remove('lit'); el.classList.remove('dim');
+    });
+    panel.hidden = true;
+    if (stage) stage.classList.remove('with-panel');
+  }
+
+  function select(id) {
+    var lit = ancestors(id);
+    lit[id] = 1;
+    svg.querySelectorAll('.g-node').forEach(function (el) {
+      var on = lit[el.dataset.node];
+      el.classList.toggle('lit', !!on);
+      el.classList.toggle('dim', !on);
+    });
+    svg.querySelectorAll('.g-edge').forEach(function (el) {
+      var on = lit[el.dataset.from] && lit[el.dataset.to];
+      el.classList.toggle('lit', !!on);
+      el.classList.toggle('dim', !on);
+    });
+
+    var node = G.nodes[id];
+    panel.querySelector('[data-trace-layer]').textContent = G.layerLabels[node.layer] || node.layer;
+    panel.querySelector('[data-trace-title]').textContent = node.label;
+    panel.querySelector('[data-trace-one]').textContent = node.one;
+
+    panel.querySelector('[data-trace-guards]').innerHTML = (node.guards || []).map(function (g) {
+      return '<div class="tg"><strong>' + esc(g.label) + '</strong><span>' + esc(g.one) + '</span></div>';
+    }).join('');
+
+    // 上游链路:按层分组、逐层缩进,一直列到原始字段
+    var chain = '';
+    var total = 0;
+    G.layers.forEach(function (layerId) {
+      var members = Object.keys(lit).filter(function (n) {
+        return n !== id && G.nodes[n] && G.nodes[n].layer === layerId;
+      }).sort();
+      if (!members.length) return;
+      total += members.length;
+      chain += '<div class="tc-layer"><span class="tc-name">' + esc(G.layerLabels[layerId]) + '</span>'
+        + '<div class="tc-items">' + members.map(function (n) {
+          return '<code>' + esc(G.nodes[n].label) + '</code>';
+        }).join('') + '</div></div>';
+    });
+    panel.querySelector('[data-trace-chain]').innerHTML = total
+      ? '<p class="tc-head">上游依赖 ' + total + ' 项 —— 一路回溯到原始字段</p>' + chain
+      : '<p class="tc-head">这是链路起点:原始字段,没有上游。</p>';
+
+    panel.querySelector('[data-trace-refs]').innerHTML = (node.refs || []).length
+      ? '<span class="tr-label">代码位置</span>' + node.refs.map(function (r) {
+          return '<code>' + esc(r) + '</code>';
+        }).join('')
+      : '';
+
+    panel.hidden = false;
+    if (stage) stage.classList.add('with-panel');
+    keepVisible(id);
+  }
+
+  // 选中的节点常在右侧列、正好在横向滚动区之外 —— 把它带进视野
+  function keepVisible(id) {
+    var sc = document.querySelector('[data-graph-scroll]');
+    var el = svg.querySelector('.g-node[data-node="' + id + '"]');
+    if (!sc || !el || sc.scrollWidth <= sc.clientWidth) return;
+    var er = el.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+    var pad = 24;
+    if (er.right > sr.right - pad) sc.scrollLeft += er.right - sr.right + pad;
+    else if (er.left < sr.left + pad) sc.scrollLeft -= sr.left + pad - er.left;
+  }
+
+  svg.querySelectorAll('.g-node').forEach(function (el) {
+    el.addEventListener('click', function () { select(el.dataset.node); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(el.dataset.node); }
+    });
+  });
+  svg.addEventListener('click', function (e) { if (e.target === svg) reset(); });
+  panel.querySelector('[data-trace-close]').addEventListener('click', reset);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') reset(); });
+
+  // 图比屏幕宽时才提示可横向滑动
+  var scroller = document.querySelector('[data-graph-scroll]');
+  var hint = document.querySelector('[data-graph-hint]');
+  function syncHint() {
+    if (scroller && hint) hint.style.display = scroller.scrollWidth > scroller.clientWidth + 4 ? '' : 'none';
+  }
+  syncHint();
+  window.addEventListener('resize', syncHint);
+})();
+"""
+
 JS = """
+// 站内阅读:iframe 懒加载,点开才请求(574KB 的 PDF 不该拖慢首屏)
+document.querySelectorAll('[data-embed]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var card = btn.closest('.sc-card');
+    var wrap = card && card.querySelector('[data-embed-wrap]');
+    if (!wrap) return;
+    var frame = wrap.querySelector('[data-embed-frame]');
+    var opening = wrap.hidden;
+    if (opening && frame && !frame.getAttribute('src')) {
+      frame.setAttribute('src', btn.dataset.embed + '#view=FitH');
+    }
+    wrap.hidden = !opening;
+    btn.setAttribute('aria-expanded', String(opening));
+    btn.classList.toggle('open', opening);
+    if (opening) wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+});
+
 // 复制转发文案
 document.querySelectorAll('.copy').forEach(function (btn) {
   btn.addEventListener('click', function () {
@@ -409,8 +605,9 @@ if (form) {
       var labels = (item.labels || []).filter(function (name) { return name !== 'intake'; })
         .map(function (name) { return '<span class="mini-label">' + escapeHtml(name) + '</span>'; }).join('');
       if (item.milestone) labels += '<span class="mini-label milestone">' + escapeHtml(item.milestone) + '</span>';
+      var receiptLabel = item.receipt && item.receipt.kind === 'comment' ? '回复' : '回执';
       var receipt = item.receipt && item.receipt.summary
-        ? '<a class="receipt" href="' + escapeHtml(item.receipt.url || item.url) + '" target="_blank" rel="noopener">回执:' + escapeHtml(item.receipt.summary) + '</a>'
+        ? '<a class="receipt" href="' + escapeHtml(item.receipt.url || item.url) + '" target="_blank" rel="noopener">' + receiptLabel + ':' + escapeHtml(item.receipt.summary) + '</a>'
         : '';
       var state = item.state === 'closed' ? '已关闭' : '处理中';
       return '<div class="issue-item">'
