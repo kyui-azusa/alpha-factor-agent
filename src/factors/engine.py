@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import ast
+from dataclasses import asdict, dataclass, field
+from typing import Any, Callable
+
+import numpy as np
+import pandas as pd
+from pandas.api.types import is_numeric_dtype
+
+
+@dataclass
+class FactorExpr:
+    name: str
+    expression: str
+    economic_rationale: str
+    fields_used: list[str]
+    formula: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["formula"] = self.formula or self.expression
+        return data
+
+
+ALLOWED_AST_NODES = (
+    ast.Expression,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Call,
+    ast.Name,
+    ast.Load,
+    ast.Constant,
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.Pow,
+    ast.Mod,
+    ast.USub,
+    ast.UAdd,
+)
+
+
+def _validate_ast(tree: ast.AST, allowed_names: set[str], allowed_funcs: set[str]) -> None:
+    for node in ast.walk(tree):
+        if not isinstance(node, ALLOWED_AST_NODES):
+            raise ValueError(f"Unsupported expression syntax: {type(node).__name__}")
+        if isinstance(node, ast.Name) and node.id not in allowed_names and node.id not in allowed_funcs:
+            raise ValueError(f"Unknown field or function: {node.id}")
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name) or node.func.id not in allowed_funcs:
+                raise ValueError("Only registered factor functions can be called")
+            if node.keywords:
+                raise ValueError("Keyword arguments are not supported in factor expressions")
+
+
+def cs_rank(s: pd.Series) -> pd.Series:
+    return s.groupby(level="date").rank(pct=True)
+
+
+def rank(s: pd.Series) -> pd.Series:
+    return cs_rank(s)
+
+
+def ts_mean(s: pd.Series, window: int) -> pd.Series:
+    if int(window) <= 0:
+        raise ValueError("ts_mean window must be positive")
+    return s.groupby(level="code", group_keys=False).transform(lambda x: x.rolling(int(window), min_periods=int(window)).mean())
+
+
+def ts_std(s: pd.Series, window: int) -> pd.Series:
+    if int(window) <= 0:
+        raise ValueError("ts_std window must be positive")
+    return s.groupby(level="code", group_keys=False).transform(lambda x: x.rolling(int(window), min_periods=int(window)).std(ddof=0))
+
+
+def delay(s: pd.Series, periods: int = 1) -> pd.Series:
+    if int(periods) < 0:
+        raise ValueError("delay periods must be non-negative")
+    return s.groupby(level="code", group_keys=False).shift(int(periods))
+
+
+def delta(s: pd.Series, periods: int = 1) -> pd.Series:
+    if int(periods) <= 0:
+        raise ValueError("delta periods must be positive")
+    return s - delay(s, int(periods))
+
+
+def signed_log(s: pd.Series) -> pd.Series:
+    return np.sign(s) * np.log1p(np.abs(s))
+
+
+def safe_div(left: pd.Series | float, right: pd.Series | float) -> pd.Series | float:
+    if isinstance(right, pd.Series):
+        return left / right.replace(0, np.nan)
+    return left / (right if right != 0 else np.nan)
+
+
+FACTOR_FUNCTIONS: dict[str, Callable[..., Any]] = {
+    "abs": abs,
+    "cs_rank": cs_rank,
+    "rank": rank,
+    "ts_mean": ts_mean,
+    "ts_std": ts_std,
+    "delay": delay,
+    "delta": delta,
+    "signed_log": signed_log,
+    "safe_div": safe_div,
+}
+
+
+def evaluate(expr: FactorExpr, panel: pd.DataFrame) -> pd.Series:
+    if not isinstance(panel.index, pd.MultiIndex) or list(panel.index.names)[:2] != ["date", "code"]:
+        raise ValueError("panel must use MultiIndex[date, code]")
+    missing = set(expr.fields_used) - set(panel.columns)
+    if missing:
+        raise ValueError(f"panel missing fields for factor {expr.name}: {sorted(missing)}")
+
+    panel_sorted = panel.sort_index()
+    env: dict[str, Any] = {}
+    for column in panel_sorted.columns:
+        series = panel_sorted[column]
+        env[column] = series if not is_numeric_dtype(series) else pd.to_numeric(series)
+    env.update(FACTOR_FUNCTIONS)
+    tree = ast.parse(expr.expression, mode="eval")
+    _validate_ast(tree, set(panel_sorted.columns), set(FACTOR_FUNCTIONS))
+    value = eval(compile(tree, "<factor-expression>", "eval"), {"__builtins__": {}}, env)
+    if not isinstance(value, pd.Series):
+        value = pd.Series(value, index=panel_sorted.index)
+    value = pd.to_numeric(value, errors="coerce")
+    value.name = expr.name
+    return value.sort_index()
+
+
+def expression_names(expression: str) -> set[str]:
+    tree = ast.parse(expression, mode="eval")
+    return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} - set(FACTOR_FUNCTIONS)

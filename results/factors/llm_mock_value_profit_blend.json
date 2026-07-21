@@ -1,0 +1,28 @@
+{
+  "expr": {
+    "name": "llm_mock_value_profit_blend",
+    "expression": "0.5 * rank(safe_div(eps, close)) + 0.5 * rank(safe_div(net_income, total_assets))",
+    "economic_rationale": "估值便宜且资产盈利能力较好的公司可能更有安全边际。",
+    "fields_used": [
+      "eps",
+      "close",
+      "net_income",
+      "total_assets"
+    ],
+    "formula": "0.5 * rank(safe_div(eps, close)) + 0.5 * rank(safe_div(net_income, total_assets))",
+    "metadata": {}
+  },
+  "summary": {
+    "name": "llm_mock_value_profit_blend",
+    "start_date": "2021-01-04",
+    "end_date": "2021-12-31",
+    "train_end": "2020-12-31",
+    "ic_mean": -0.004518972787969978,
+    "ic_ir": -0.05358870480836535,
+    "long_short_mean": -0.001997162833085345,
+    "turnover_mean": 0.08919111197007502,
+    "net_long_short_mean": -0.00208635394505542,
+    "observations": 958677,
+    "cost_bps": 10.0
+  }
+}

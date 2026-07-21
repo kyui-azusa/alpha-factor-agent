@@ -1,0 +1,26 @@
+{
+  "expr": {
+    "name": "llm_mock_cashflow_quality",
+    "expression": "rank(safe_div(operating_cash_flow, total_equity))",
+    "economic_rationale": "经营现金流相对权益更高可能表示盈利质量更扎实。",
+    "fields_used": [
+      "operating_cash_flow",
+      "total_equity"
+    ],
+    "formula": "rank(safe_div(operating_cash_flow, total_equity))",
+    "metadata": {}
+  },
+  "summary": {
+    "name": "llm_mock_cashflow_quality",
+    "start_date": "2021-01-04",
+    "end_date": "2021-12-31",
+    "train_end": "2020-12-31",
+    "ic_mean": -0.0043238572820550585,
+    "ic_ir": -0.06772977375824783,
+    "long_short_mean": -0.0005237988716565687,
+    "turnover_mean": 0.11868614121947012,
+    "net_long_short_mean": -0.0006424850128760388,
+    "observations": 686661,
+    "cost_bps": 10.0
+  }
+}

@@ -1,0 +1,38 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+.venv/
+.env
+config/mssql.env
+data/cache/
+data/processed/
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.xdv
+
+# 数据边界(ADR-0003 / 0007 / 0011)
+# data/raw:原始行情与财报,含超过 GitHub 100MB 上限的大文件
+# data/metadata:聚源数据库字段清单,ADR-0007 明令禁止公开
+data/raw/
+data/metadata/
+
+# 版权材料:课程提供的参考资料(已出版论文,不可转发)
+AI金融研学实训营研究参考资料/
+AI金融研学实训营研究参考资料.zip
+AI金融研学实训营研究参考主题.docx
+docs/研究参考主题.docx
+
+# 第三方个人数据:工单提交的截图
+platform/uploads/
+
+# 渲染产物(体积大,可重生成)
+videos/**/media/
+
+# 聚源探查过程中落盘的临时样本(含真实数据切片)
+results/tmp_*.csv

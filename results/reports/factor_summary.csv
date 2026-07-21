@@ -1,0 +1,3 @@
+name,IC,ICIR,turnover,net_long_short,max_abs_baseline_corr,expression,economic_rationale
+llm_mock_value_profit_blend,-0.004518972787969978,-0.05358870480836535,0.08919111197007502,-0.00208635394505542,0.8949433410890545,"0.5 * rank(safe_div(eps, close)) + 0.5 * rank(safe_div(net_income, total_assets))",估值便宜且资产盈利能力较好的公司可能更有安全边际。
+llm_mock_cashflow_quality,-0.0043238572820550585,-0.06772977375824783,0.11868614121947012,-0.0006424850128760388,0.3652612637949234,"rank(safe_div(operating_cash_flow, total_equity))",经营现金流相对权益更高可能表示盈利质量更扎实。

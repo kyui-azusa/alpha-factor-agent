@@ -1,0 +1,20 @@
+[
+  {
+    "name": "第一部分:项目在做什么",
+    "file": "s01_project_goal",
+    "start": 4.87,
+    "end": 52.33
+  },
+  {
+    "name": "第二部分:基本原理",
+    "file": "s02_trustworthy_principles",
+    "start": 52.33,
+    "end": 122.63
+  },
+  {
+    "name": "第三部分:成员使用流程",
+    "file": "s03_team_workflow",
+    "start": 122.63,
+    "end": 175.33
+  }
+]

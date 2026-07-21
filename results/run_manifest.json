@@ -1,0 +1,8 @@
+{
+  "baseline_count": 5,
+  "agent_factor_count": 2,
+  "factor_summary_rows": 2,
+  "factor_summary_path": "/Users/azusa/dev/研究/alpha-factor-agent/results/reports/factor_summary.csv",
+  "reports_dir": "/Users/azusa/dev/研究/alpha-factor-agent/results/reports",
+  "factors_dir": "/Users/azusa/dev/研究/alpha-factor-agent/results/factors"
+}

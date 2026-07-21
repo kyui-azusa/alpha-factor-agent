@@ -1,0 +1,39 @@
+{
+  "raw_status": {
+    "prices": {
+      "exists": true,
+      "path": "/Users/azusa/dev/研究/alpha-factor-agent/data/raw/prices.pkl",
+      "rows": 1904369,
+      "date_min": "2020-01-02",
+      "date_max": "2021-12-31",
+      "code_count": 4261
+    },
+    "fundamentals": {
+      "exists": true,
+      "path": "/Users/azusa/dev/研究/alpha-factor-agent/data/raw/fundamentals.csv",
+      "rows": 164881,
+      "date_min": null,
+      "date_max": null,
+      "code_count": 5705,
+      "ann_date_min": "2018-04-04",
+      "ann_date_max": "2021-12-31",
+      "report_period_min": "2018-03-31",
+      "report_period_max": "2021-09-30"
+    },
+    "universe": {
+      "exists": true,
+      "path": "/Users/azusa/dev/研究/alpha-factor-agent/data/raw/universe.csv",
+      "rows": 1904369,
+      "date_min": "2020-01-02",
+      "date_max": "2021-12-31",
+      "code_count": 4261
+    }
+  },
+  "mssql": {
+    "env_keys_present": [],
+    "env_file_exists": true,
+    "env_file_path": "/Users/azusa/dev/研究/alpha-factor-agent/config/mssql.env"
+  },
+  "baseline_summary_path": "/Users/azusa/dev/研究/alpha-factor-agent/results/reports/baseline_summary.csv",
+  "factor_summary_path": "/Users/azusa/dev/研究/alpha-factor-agent/results/reports/factor_summary.csv"
+}

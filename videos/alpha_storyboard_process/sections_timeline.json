@@ -1,0 +1,44 @@
+[
+  {
+    "name": "收益记账:alpha在哪",
+    "file": "s01_alpha_accounting",
+    "start": 4.87,
+    "end": 78.63
+  },
+  {
+    "name": "横截面转向",
+    "file": "s02_cross_section",
+    "start": 78.63,
+    "end": 137.13
+  },
+  {
+    "name": "Rank IC与硬币偏置",
+    "file": "s03_rank_ic",
+    "start": 137.13,
+    "end": 211.67
+  },
+  {
+    "name": "中性化·带阻滤波",
+    "file": "s04_neutralize_filter",
+    "start": 211.67,
+    "end": 270.37
+  },
+  {
+    "name": "pit_merge防穿越",
+    "file": "s05_pit_merge",
+    "start": 270.37,
+    "end": 304.63
+  },
+  {
+    "name": "四步闭环",
+    "file": "s06_loop",
+    "start": 304.63,
+    "end": 327.77
+  },
+  {
+    "name": "信息单向阀",
+    "file": "s07_one_way_valve",
+    "start": 327.77,
+    "end": 355.6
+  }
+]
