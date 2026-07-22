@@ -19,7 +19,7 @@ def _weights() -> pd.Series:
 
 
 def test_stamp_duty_uses_correct_basis_point_conversion_and_date_rule():
-    rates = stamp_duty_bps(pd.to_datetime(["2021-01-01", "2024-01-01"]))
+    rates = stamp_duty_bps(pd.to_datetime(["2023-08-27", "2023-08-28"]))
 
     assert rates.tolist() == [10.0, 5.0]
 
@@ -58,6 +58,25 @@ def test_market_impact_is_nonlinear_in_participation_and_reports_coverage():
     expected = (1.0 * 100.0 * np.sqrt(0.01) + 1.0 * 100.0 * np.sqrt(1.0)) / 10_000.0
     assert np.isclose(ledger.iloc[0]["market_impact_cost"], expected)
     assert ledger.iloc[0]["impact_coverage"] == 1.0
+
+
+def test_missing_amount_charges_zero_impact_and_reports_zero_coverage():
+    ledger = execution_cost_ledger(
+        _weights(),
+        model=AShareCostModel(impact_bps_at_full_participation=100.0),
+    )
+
+    assert np.allclose(ledger["market_impact_cost"], 0.0)
+    assert np.allclose(ledger["impact_coverage"], 0.0)
+
+
+def test_impact_coverage_is_weighted_by_traded_notional():
+    weights = _weights().loc[pd.IndexSlice[[pd.Timestamp("2021-01-04")], :]]
+    amounts = pd.Series([100_000_000.0, np.nan], index=weights.index)
+
+    ledger = execution_cost_ledger(weights, daily_amount=amounts)
+
+    assert np.isclose(ledger.iloc[0]["impact_coverage"], 0.5)
 
 
 def test_borrow_cost_is_accrued_from_short_exposure_and_components_reconcile():

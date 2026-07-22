@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.backtest.costs import AShareCostModel, apply_execution_costs
 from src.backtest.metrics import ic_ir, long_short_return, long_short_weights, quantile_returns, rank_ic, turnover
 from src.backtest.robustness import FORWARD_COLUMN_GRID, robustness_policy, robustness_summary
 from src.config import CONFIG, Config
@@ -19,7 +20,6 @@ ADV_MIN_PERIODS = 1
 MIN_ADV_NOTIONAL = 1_000_000.0
 PORTFOLIO_VALUE = 100_000_000.0
 MAX_PARTICIPATION_RATE = 0.10
-IMPACT_BPS_PER_10PCT_ADV = 5.0
 
 
 def _ic_inference(ic: pd.Series) -> dict:
@@ -513,6 +513,7 @@ def _execution_review(
     train_end: pd.Timestamp,
 ) -> dict[str, Any]:
     target_weights = long_short_weights(factor, n=n_quantiles)
+    cost_model = AShareCostModel(portfolio_nav=PORTFOLIO_VALUE)
     if target_weights.empty:
         return {
             "order_constraints": [],
@@ -520,7 +521,6 @@ def _execution_review(
             "max_participation_rate": MAX_PARTICIPATION_RATE,
             "adv_window": ADV_WINDOW,
             "min_adv_notional": MIN_ADV_NOTIONAL,
-            "impact_bps_per_10pct_adv": IMPACT_BPS_PER_10PCT_ADV,
             "submitted_notional": 0.0,
             "executed_notional": 0.0,
             "blocked_buy_notional": 0.0,
@@ -529,11 +529,18 @@ def _execution_review(
             "partial_fill_notional": 0.0,
             "fill_rate_mean": float("nan"),
             "impact_cost_mean": float("nan"),
+            "impact_coverage_mean": float("nan"),
+            "cost_total_mean": float("nan"),
+            "cost_component_means": {},
+            "cost_component_totals": {},
+            "cost_model_assumptions": cost_model.to_dict(),
             "execution_turnover_mean": float("nan"),
             "executable_long_short_mean": float("nan"),
             "executable_net_long_short_mean": float("nan"),
             "executable_long_short": pd.Series(dtype=float, name="executable_long_short"),
             "executable_net_long_short": pd.Series(dtype=float, name="executable_net_long_short"),
+            "feasible_weights": pd.Series(dtype=float, name="feasible_weight"),
+            "cost_ledger": pd.DataFrame(),
         }
 
     constraints = ["directional_limit_checks", "suspended_orders_blocked"]
@@ -549,7 +556,7 @@ def _execution_review(
 
     records: list[dict[str, Any]] = []
     gross_returns: dict[pd.Timestamp, float] = {}
-    net_returns: dict[pd.Timestamp, float] = {}
+    feasible_weight_rows: list[pd.Series] = []
     previous = pd.Series(dtype=float)
     dates = pd.Index(target_weights.index.get_level_values("date").unique()).sort_values()
     dates = dates[dates > train_end]
@@ -582,18 +589,12 @@ def _execution_review(
         executed = np.sign(after_liquidity) * executable_abs
         executed = executed.fillna(0.0)
         current = previous.reindex(universe, fill_value=0.0).add(executed, fill_value=0.0)
+        current.index = pd.MultiIndex.from_product([[pd.Timestamp(date)], current.index], names=["date", "code"])
+        feasible_weight_rows.append(current.rename("feasible_weight"))
+        current = current.droplevel("date")
 
         date_returns = returns.loc[return_dates == date].droplevel("date").reindex(universe).fillna(0.0)
         gross = float(current.mul(date_returns, fill_value=0.0).sum())
-        brokerage_cost = float(executed.abs().sum() * cfg.cost_bps / 10000.0)
-        if "amount" in panel.columns:
-            participation_base = capacity_base.reindex(universe).replace(0.0, np.nan)
-            participation = executed.abs().mul(PORTFOLIO_VALUE).div(participation_base).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-            impact_bps = participation / MAX_PARTICIPATION_RATE * IMPACT_BPS_PER_10PCT_ADV
-            impact_cost = float(executed.abs().mul(impact_bps).sum() / 10000.0)
-        else:
-            impact_cost = 0.0
-        net = gross - brokerage_cost - impact_cost
 
         submitted_abs = float(submitted.abs().sum() * PORTFOLIO_VALUE)
         executed_abs_notional = float(executed.abs().sum() * PORTFOLIO_VALUE)
@@ -607,20 +608,51 @@ def _execution_review(
                 "liquidity_blocked_notional": float(after_direction.where(~has_liquidity, 0.0).abs().sum() * PORTFOLIO_VALUE),
                 "partial_fill_notional": float(after_liquidity.abs().sub(executed.abs()).clip(lower=0.0).sum() * PORTFOLIO_VALUE),
                 "fill_rate": executed_abs_notional / submitted_abs if submitted_abs > 0 else float("nan"),
-                "impact_cost": impact_cost,
                 "execution_turnover": float(executed.abs().sum()),
             }
         )
         gross_returns[pd.Timestamp(date)] = gross
-        net_returns[pd.Timestamp(date)] = net
         previous = current.loc[current.abs() > 1e-12]
 
     daily = pd.DataFrame(records).set_index("date") if records else pd.DataFrame()
     oos_daily = daily.loc[daily.index > train_end] if not daily.empty else daily
     executable_long_short = pd.Series(gross_returns, name="executable_long_short").sort_index()
-    executable_net_long_short = pd.Series(net_returns, name="executable_net_long_short").sort_index()
     executable_long_short = executable_long_short.loc[executable_long_short.index > train_end]
-    executable_net_long_short = executable_net_long_short.loc[executable_net_long_short.index > train_end]
+    if feasible_weight_rows:
+        feasible_weights = pd.concat(feasible_weight_rows).sort_index()
+    else:
+        empty_index = pd.MultiIndex.from_arrays([[], []], names=["date", "code"])
+        feasible_weights = pd.Series(dtype=float, index=empty_index, name="feasible_weight")
+    daily_amount = amount if "amount" in panel.columns else None
+    executable_net_long_short, cost_ledger = apply_execution_costs(
+        executable_long_short,
+        feasible_weights,
+        model=cost_model,
+        daily_amount=daily_amount,
+    )
+    executable_net_long_short.name = "executable_net_long_short"
+    cost_ledger = cost_ledger.reindex(executable_long_short.index)
+    if not oos_daily.empty and not cost_ledger.empty:
+        oos_daily = oos_daily.join(cost_ledger, how="left")
+        oos_daily["impact_cost"] = oos_daily["market_impact_cost"]
+
+    cost_components = [
+        "commission_cost",
+        "stamp_duty_cost",
+        "slippage_cost",
+        "market_impact_cost",
+        "short_borrow_cost",
+    ]
+    component_means = {
+        column: float(cost_ledger[column].mean())
+        for column in cost_components
+        if column in cost_ledger
+    }
+    component_totals = {
+        column: float(cost_ledger[column].sum())
+        for column in cost_components
+        if column in cost_ledger
+    }
     return {
         "order_constraints": constraints,
         "execution_missing_optional_fields": missing,
@@ -628,7 +660,6 @@ def _execution_review(
         "max_participation_rate": MAX_PARTICIPATION_RATE,
         "adv_window": ADV_WINDOW,
         "min_adv_notional": MIN_ADV_NOTIONAL,
-        "impact_bps_per_10pct_adv": IMPACT_BPS_PER_10PCT_ADV,
         "submitted_notional": float(oos_daily["submitted_notional"].sum()) if not oos_daily.empty else 0.0,
         "executed_notional": float(oos_daily["executed_notional"].sum()) if not oos_daily.empty else 0.0,
         "blocked_buy_notional": float(oos_daily["blocked_buy_notional"].sum()) if not oos_daily.empty else 0.0,
@@ -636,13 +667,20 @@ def _execution_review(
         "liquidity_blocked_notional": float(oos_daily["liquidity_blocked_notional"].sum()) if not oos_daily.empty else 0.0,
         "partial_fill_notional": float(oos_daily["partial_fill_notional"].sum()) if not oos_daily.empty else 0.0,
         "fill_rate_mean": float(oos_daily["fill_rate"].mean()) if not oos_daily.empty else float("nan"),
-        "impact_cost_mean": float(oos_daily["impact_cost"].mean()) if not oos_daily.empty else float("nan"),
+        "impact_cost_mean": float(cost_ledger["market_impact_cost"].mean()) if not cost_ledger.empty else float("nan"),
+        "impact_coverage_mean": float(cost_ledger["impact_coverage"].mean()) if not cost_ledger.empty else float("nan"),
+        "cost_total_mean": float(cost_ledger["total_cost"].mean()) if not cost_ledger.empty else float("nan"),
+        "cost_component_means": component_means,
+        "cost_component_totals": component_totals,
+        "cost_model_assumptions": cost_model.to_dict(),
         "execution_turnover_mean": float(oos_daily["execution_turnover"].mean()) if not oos_daily.empty else float("nan"),
         "executable_long_short_mean": float(executable_long_short.mean()) if not executable_long_short.empty else float("nan"),
         "executable_net_long_short_mean": float(executable_net_long_short.mean()) if not executable_net_long_short.empty else float("nan"),
         "daily_execution": oos_daily.reset_index().to_dict(orient="records") if not oos_daily.empty else [],
         "executable_long_short": executable_long_short,
         "executable_net_long_short": executable_net_long_short,
+        "feasible_weights": feasible_weights,
+        "cost_ledger": cost_ledger,
     }
 
 

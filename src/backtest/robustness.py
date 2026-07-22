@@ -16,12 +16,12 @@ def robustness_policy(cost_bps: float, n_quantiles: int, forward_column: str) ->
         "default_cost_bps": cost_bps,
         "default_n_quantiles": n_quantiles,
         "default_forward_column": forward_column,
-        "cost_convention": "net_long_short = long_short - turnover * cost_bps / 10000; cost_bps is a scenario parameter, not a full broker-fee, tax, or market-impact model.",
+        "cost_convention": "Legacy net_long_short uses turnover * scenario cost_bps; executable_net_long_short uses the deterministic A-share component ledger reported with feasible holdings.",
         "cost_bps_grid": COST_BPS_GRID,
         "a_share_reality_checks": {
-            "stamp_duty_sell_side_bps_reference": 100.0,
+            "stamp_duty_sell_side_bps_reference": 10.0,
             "high_cost_scenarios_included": True,
-            "missing_frictions": ["market_impact", "borrow_cost", "slippage", "order_queue_priority"],
+            "missing_frictions": ["order_queue_priority"],
         },
         "n_quantiles_grid": [3, 5, 10],
         "forward_column_grid": FORWARD_COLUMN_GRID,
@@ -31,7 +31,7 @@ def robustness_policy(cost_bps: float, n_quantiles: int, forward_column: str) ->
             "max_time_window": MAX_TIME_WINDOW,
         },
         "allowed_functions": sorted(FACTOR_FUNCTIONS),
-        "note": "This deterministic policy declares robustness dimensions to sweep outside the LLM path; high-cost A-share scenarios should be read as sensitivity checks until a richer execution-cost model is added.",
+        "note": "The deterministic A-share cost ledger is reported alongside the legacy scenario sensitivity grid; neither path calls an LLM.",
     }
 
 

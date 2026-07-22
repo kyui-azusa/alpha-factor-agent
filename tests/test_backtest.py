@@ -73,6 +73,8 @@ def test_backtest_baseline_writes_report(tmp_path):
     assert "robustness" in payload
     assert "robustness_layers" in payload
     assert isinstance(payload["tradability"]["executable_long_short"], list)
+    assert isinstance(payload["tradability"]["cost_ledger"], list)
+    assert payload["tradability"]["cost_model_assumptions"]["stamp_duty_rule"]
     layers = payload["evaluation_layers"]
     assert set(layers) == {"factor_validity", "strategy_performance", "risk_exposure_independence"}
     assert layers["factor_validity"]["quantile_monotonicity"]
@@ -80,6 +82,9 @@ def test_backtest_baseline_writes_report(tmp_path):
     assert "executable_net_long_short_mean" in strategy
     assert "fill_rate_mean" in strategy
     assert "impact_cost_mean" in strategy
+    assert "detailed_cost_total_mean" in strategy
+    assert "impact_coverage_mean" in strategy
+    assert strategy["cost_model_assumptions"]["portfolio_nav"] == 100_000_000.0
     risk = layers["risk_exposure_independence"]
     assert "market_regime_stability" in risk
     assert "style_stability" in risk
@@ -113,6 +118,16 @@ def test_backtest_includes_inference_walk_forward_and_tradability(tmp_path):
     assert "executable_net_long_short_mean" in result["tradability"]
     assert "fill_rate_mean" in result["tradability"]
     assert "impact_cost_mean" in result["tradability"]
+    assert result["tradability"]["impact_coverage_mean"] > 0.0
+    assert result["tradability"]["cost_component_means"]
+    gross = result["tradability"]["executable_long_short"]
+    net = result["tradability"]["executable_net_long_short"]
+    ledger = result["tradability"]["cost_ledger"]
+    assert np.allclose(net, gross - ledger["total_cost"])
+    components = ledger[
+        ["commission_cost", "stamp_duty_cost", "slippage_cost", "market_impact_cost", "short_borrow_cost"]
+    ].sum(axis=1)
+    assert np.allclose(ledger["total_cost"], components)
     assert {
         "directional_limit_checks",
         "shifted_adv_capacity",
@@ -152,7 +167,8 @@ def test_backtest_includes_inference_walk_forward_and_tradability(tmp_path):
     assert {"market_regime", "industry", "style", "universe", "rebalance_frequency"} <= set(result["robustness_layers"])
     policy = result["data"]["robustness_policy"]
     assert policy["cost_bps_grid"] == [0.0, 5.0, 10.0, 20.0, 30.0, 50.0, 100.0]
-    assert policy["a_share_reality_checks"]["stamp_duty_sell_side_bps_reference"] == 100.0
+    assert policy["a_share_reality_checks"]["stamp_duty_sell_side_bps_reference"] == 10.0
+    assert policy["a_share_reality_checks"]["missing_frictions"] == ["order_queue_priority"]
     assert {3, 5, 10} <= set(policy["n_quantiles_grid"])
     assert "rank" in policy["allowed_functions"]
 
