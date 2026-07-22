@@ -48,6 +48,8 @@ def _quantile_labels(group: pd.DataFrame, n: int) -> pd.Series:
 
 def quantile_returns(factor: pd.Series, fwd_ret: pd.Series, n: int = 10) -> pd.DataFrame:
     data = _aligned_frame(factor, fwd_ret)
+    if data.empty:
+        return pd.DataFrame()
     data["quantile"] = data.groupby(level="date", group_keys=False).apply(lambda g: _quantile_labels(g, n))
     result = data.dropna(subset=["quantile"]).groupby([data.dropna(subset=["quantile"]).index.get_level_values("date"), "quantile"])[
         "fwd_ret"

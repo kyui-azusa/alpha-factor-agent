@@ -9,6 +9,11 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
 
+MAX_AST_NODES = 64
+MAX_AST_DEPTH = 12
+MAX_TIME_WINDOW = 252
+
+
 @dataclass
 class FactorExpr:
     name: str
@@ -43,7 +48,33 @@ ALLOWED_AST_NODES = (
 )
 
 
+def _ast_depth(node: ast.AST) -> int:
+    children = list(ast.iter_child_nodes(node))
+    if not children:
+        return 1
+    return 1 + max(_ast_depth(child) for child in children)
+
+
+def _numeric_constant(node: ast.AST) -> float | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        value = _numeric_constant(node.operand)
+        return -value if value is not None else None
+    return None
+
+
+def _validate_complexity(tree: ast.AST) -> None:
+    nodes = list(ast.walk(tree))
+    if len(nodes) > MAX_AST_NODES:
+        raise ValueError(f"Expression is too complex: node_count={len(nodes)} max={MAX_AST_NODES}")
+    depth = _ast_depth(tree)
+    if depth > MAX_AST_DEPTH:
+        raise ValueError(f"Expression is too deeply nested: depth={depth} max={MAX_AST_DEPTH}")
+
+
 def _validate_ast(tree: ast.AST, allowed_names: set[str], allowed_funcs: set[str]) -> None:
+    _validate_complexity(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ALLOWED_AST_NODES):
             raise ValueError(f"Unsupported expression syntax: {type(node).__name__}")
@@ -54,6 +85,14 @@ def _validate_ast(tree: ast.AST, allowed_names: set[str], allowed_funcs: set[str
                 raise ValueError("Only registered factor functions can be called")
             if node.keywords:
                 raise ValueError("Keyword arguments are not supported in factor expressions")
+            if node.func.id in {"delay", "delta", "ts_mean", "ts_std"} and len(node.args) >= 2:
+                value = _numeric_constant(node.args[1])
+                if value is None:
+                    raise ValueError(f"{node.func.id} window/period argument must be a numeric constant")
+                if abs(value) > MAX_TIME_WINDOW:
+                    raise ValueError(
+                        f"{node.func.id} window/period is too large: value={value:g} max={MAX_TIME_WINDOW}"
+                    )
 
 
 def cs_rank(s: pd.Series) -> pd.Series:
@@ -136,4 +175,5 @@ def evaluate(expr: FactorExpr, panel: pd.DataFrame) -> pd.Series:
 
 def expression_names(expression: str) -> set[str]:
     tree = ast.parse(expression, mode="eval")
+    _validate_complexity(tree)
     return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} - set(FACTOR_FUNCTIONS)
