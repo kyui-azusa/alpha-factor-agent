@@ -119,6 +119,7 @@ def execution_cost_ledger(
         impact_bps = model.impact_bps_at_full_participation * np.sqrt(participation)
         trades["market_impact_cost"] = (trades["abs_trade_weight"] * impact_bps / 10_000.0).where(valid, 0.0)
         trades["impact_available"] = valid
+    trades["impact_covered_turnover"] = trades["abs_trade_weight"].where(trades["impact_available"], 0.0)
 
     trades["short_borrow_cost"] = (
         (-trades["target_weight"].clip(upper=0.0))
@@ -135,8 +136,10 @@ def execution_cost_ledger(
         slippage_cost=("slippage_cost", "sum"),
         market_impact_cost=("market_impact_cost", "sum"),
         short_borrow_cost=("short_borrow_cost", "sum"),
-        impact_coverage=("impact_available", "mean"),
+        impact_covered_turnover=("impact_covered_turnover", "sum"),
     )
+    daily["impact_coverage"] = daily["impact_covered_turnover"].div(daily["gross_turnover"].replace(0.0, np.nan))
+    daily = daily.drop(columns="impact_covered_turnover")
     components = [
         "commission_cost",
         "stamp_duty_cost",
