@@ -1,6 +1,6 @@
 # Local Development Plan
 
-Updated: 2026-07-23 10:40 +0800
+Updated: 2026-07-23 17:10 +0800
 
 This file is the local planning board for turning feedback issues into implementation work. GitHub Issues remain the raw intake source; this document is the working summary used before starting code changes, so different Codex runs or teammates do not accidentally fix the same ticket twice.
 
@@ -83,6 +83,7 @@ These make the numerical results more defensible once correctness is intact.
 | #11 | Walk-forward OOS evaluation | Reduces dependence on one train/test split and supports robustness discussion. | Extend backtest runner/report with rolling or expanding windows, then summarize pass rate and worst window. |
 | #12 | Trading feasibility constraints | A-share stop/limit/liquidity constraints can make paper returns unrealizable. | Add optional constraints to portfolio construction/reporting; keep ideal and feasible results side by side. |
 | #20 | Re-skin factor detection and promotion policy | Avoids promoting near-duplicate factors that pass IC by minor variation. | Extend novelty checks beyond strict correlation and document promotion rules. |
+| #32 | Detailed A-share execution costs | A single turnover fee cannot represent sell-side tax, slippage, market impact, and borrow costs. | Produce a reconciled daily component ledger and integrate it with feasible target weights from #12. |
 
 ### P1 Defense Demonstration
 
@@ -101,6 +102,7 @@ These improve the LLM side without letting it control numerical claims.
 | #14, #16, #19 | A-share knowledge base and factor hypothesis cards | Prevents black-box formula generation and separates broad hypotheses from directly backtestable factors. | Define a lightweight hypothesis card schema and field/source references before changing prompts. |
 | #18 | Missing-value handling handbook | Keeps LLM proposals aware of dirty data through deterministic rules rather than ad hoc fills. | Add a field policy document or schema extension for null, negative PE, stale fundamentals, and cross-section eligibility. |
 | #6 | Market-state/regime discussion | Useful, but likely belongs in limitations or future work unless implemented carefully. | Decide whether to document as limitation or add a bounded regime tag that does not leak test outcomes. |
+| #24 | Temperature validity/novelty sweep | Makes the generation randomness trade-off measurable instead of anecdotal. | Sweep a fixed grid and persist validity, novelty, uniqueness, and Pareto-frontier results. |
 
 ### P2 Factor Ideas And Explainability
 
@@ -130,10 +132,12 @@ Keep this table short and current. One row can cover a grouped workstream when t
 | #8 | Synthetic-vs-real report labeling | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added visible `data_mode`/source metadata in reports and tests. Closed upstream with completion note on 2026-07-22. |
 | #11 | Walk-forward OOS evaluation | P1 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added chronological walk-forward output and report summary. Closed upstream with completion note on 2026-07-22. |
 | #12 | Trading feasibility constraints | P1 | open |  |  |  |  |
-| #20 | Re-skin factor detection and promotion policy | P1 | open |  |  |  |  |
-| #14, #16, #19 | Knowledge base and hypothesis card generation | P2 | open |  |  |  | #14 and #16 closed for hypothesis-card/landing-chain scope. #19 remains open for a fuller A-share knowledge base. |
+| #20 | Re-skin factor detection and promotion policy | P1 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added deterministic expression fingerprints, candidate/library and candidate/candidate signal checks, rolling convergence, post-backtest Rank IC/return-path similarity, explicit promotion decisions, and reversible demotion. Verified: `pytest tests/test_novelty.py tests/test_temperature.py tests/test_agents.py -q`; `pytest -q`. |
+| #32 | Detailed A-share execution costs | P1 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added signed turnover, commission, date-aware sell-only stamp duty, slippage, nonlinear participation impact, short-borrow accrual, coverage, and a reconciled ledger. Core model verified by `pytest tests/test_costs.py -q`; runner/report integration is paired with #12 target weights in the next commit. |
+| #14, #16, #19 | Knowledge base and hypothesis card generation | P2 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added a versioned, source-traceable A-share knowledge catalog, runtime field intersection, citation requirements, and fail-closed validation for unregistered backtest fields. |
 | #18 | Missing-value handling handbook | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic field missing policy/generation context coverage. Closed upstream with completion note on 2026-07-22. |
-| #6 | Market-state/regime handling | P2 | open |  |  |  |  |
+| #6 | Market-state/regime handling | P2 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added deterministic T-1 market regimes and a bounded `where(regime_*, on_true, on_false)` operator; future-invariance, branch, metadata, and AST-safety tests cover the boundary. |
+| #24 | Temperature validity/novelty sweep | P2 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added a deterministic sweep runner with requested/proposed/parse-failure counts, rule validity, strict novelty, warning acceptance, uniqueness, Pareto flags, and JSON/CSV artifacts. Verified: `pytest tests/test_temperature.py -q`; `pytest -q`. |
 | #9 | Standard factor explanation cards | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added factor card output in backtest reports. Closed upstream with completion note on 2026-07-22. |
 | #13, #17 | Candidate factor ideas | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Registered cash-flow yield and delevered ROE as explainable seed/candidate factors. Closed upstream with completion note on 2026-07-22. |
 | #5 | Intake validation tickets | P3 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | #2 and #5 closed as validation-only on 2026-07-22; no product code change required. |

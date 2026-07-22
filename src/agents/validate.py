@@ -5,6 +5,7 @@ import ast
 
 import pandas as pd
 
+from src.agents.knowledge_base import validate_backtestable_claim
 from src.factors.engine import FACTOR_FUNCTIONS, MAX_TIME_WINDOW, FactorExpr, evaluate, expression_names
 from src.llm.client import LLMClient
 from src.llm.prompts import VALIDATE_SEMANTIC_PROMPT
@@ -151,6 +152,9 @@ def validate(
     forbidden = (used_names | declared) & FORBIDDEN_FIELDS
     if forbidden:
         return False, f"future/label fields are forbidden in factor expressions: {sorted(forbidden)}"
+    ok, reason = validate_backtestable_claim(used_names | declared, expr.metadata or {})
+    if not ok:
+        return False, reason
     lowered = expr.expression.lower()
     if "shift(-" in lowered or "future" in lowered:
         return False, "expression appears to reference future data"
