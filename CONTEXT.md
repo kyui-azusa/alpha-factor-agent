@@ -5,8 +5,12 @@ This context describes the shared language for the five-day alpha-factor researc
 ## Language
 
 **Research Project**:
-The main deliverable: an explainable A-share alpha factor agent whose numerical claims are produced by deterministic code, not by an LLM.
+The main deliverable: an explainable A-share alpha factor agent whose numerical claims are produced by deterministic code, not by an LLM. Since ADR-0022 the research question is narrowed to a falsifiable increment test — when structured data already discloses the key numbers of an event, does reading the announcement text add anything? — using A-share performance forecasts (2015-2021) as the testing ground.
 _Avoid_: final platform, social site, side project
+
+**Increment Test**:
+The falsifiable core of the narrowed research question: whether semantic features an LLM extracts from performance-forecast text carry cross-sectional predictive power *beyond* the structured forecast fields already available in 聚源 (magnitude, type, range). The structured-field factor is the control group. A null result is a complete answer, not a failure, because the project's asset is the judging apparatus rather than any single factor.
+_Avoid_: proving the factor works, LLM beats humans, headline alpha
 
 **Five-Day Delivery Line**:
 The compressed delivery target for the five-day build: M0-M3 must be real and tested, M4-M5 may be lightweight or mocked where necessary, and M6 must produce defense and paper-ready materials.

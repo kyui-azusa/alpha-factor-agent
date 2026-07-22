@@ -36,7 +36,7 @@ base AS (
     WHERE f.InfoPublDate IS NOT NULL
       AND f.EndDate IS NOT NULL
       AND f.InfoPublDate <= '2021-12-31'
-      AND f.EndDate >= '2018-01-01'
+      AND f.EndDate >= '2013-01-01'
 )
 SELECT
     code,
