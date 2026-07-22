@@ -1,6 +1,6 @@
 # Local Development Plan
 
-Updated: 2026-07-22 14:39 +0800
+Updated: 2026-07-22 23:16 +0800
 
 This file is the local planning board for turning feedback issues into implementation work. GitHub Issues remain the raw intake source; this document is the working summary used before starting code changes, so different Codex runs or teammates do not accidentally fix the same ticket twice.
 
@@ -31,6 +31,27 @@ Use the `Claim Ledger` below before working on an issue or grouped task.
 6. When abandoning work before timeout, set `status` to `released` and write a short note so the next person knows what was learned.
 
 Status values: `open`, `claimed`, `released`, `timeout`, `done`, `blocked`, `wontfix`.
+
+## Closeout Protocol
+
+Use this when an issue is fully fixed, intentionally closed as validation-only, or found to be a duplicate. Do not close broad feedback when only a subset is implemented; leave a comment with the completed scope and keep the issue open or split follow-up work.
+
+1. Confirm the implementation state before touching GitHub:
+   - The relevant code/docs are committed or clearly present in the current worktree.
+   - Focused pytest coverage passed; run full `pytest -q` when the blast radius is broad.
+   - For PIT, chronological split, or LLM/backtest-boundary changes, explicitly verify the matching trust-boundary tests.
+2. Update the `Claim Ledger` row:
+   - Set `status` to `done`.
+   - Add the commit hash or local change note.
+   - Add the exact test command(s) used.
+3. Reply on the GitHub issue before or while closing it. The reply must include these headings:
+   - `改了什么`
+   - `怎么改的`
+   - `验证`
+   - `总结`
+4. Close the issue as completed only when the requested behavior is fully covered by the implementation and tests.
+5. For validation-only or duplicate tickets, say explicitly that no product code changed, explain why, and close only after confirming there is no actionable product bug left.
+6. For partial fixes, keep the issue open and write what is done, what remains, and which follow-up issue or workstream owns the remainder.
 
 Priority values:
 
@@ -86,7 +107,7 @@ These are useful candidates or reporting polish after the pipeline is stable.
 
 | Issues | Workstream | Why it matters | Suggested first step |
 |---|---|---|---|
-| #5, #2 | Intake test tickets | These confirm the issue system works and do not need product work. | Close or mark as validation-only after confirming no attached bug remains. |
+| #5 | Intake test tickets | These confirm the issue system works and do not need product work. #2 was closed as validation-only on 2026-07-22. | Close or mark as validation-only after confirming no attached bug remains. |
 
 ## Claim Ledger
 
@@ -95,17 +116,17 @@ Keep this table short and current. One row can cover a grouped workstream when t
 | Issues | Workstream | Priority | Status | Owner | Claimed at | Expires at | Notes |
 |---|---|---:|---|---|---|---|---|
 | #7, #15 | PIT field availability and look-ahead proof | P0 | done | Codex current task | 2026-07-22 16:08 +0800 | 2026-07-22 17:08 +0800 | Implemented deterministic field availability metadata, validate/backtest enforcement, PIT-safe mktcap provenance, docs/paper limitations, and tests. Verified: `pytest tests/test_align.py tests/test_backtest.py tests/test_agents.py tests/test_factors.py -q`; `pytest -q`. |
-| #10 | Expression engine whitelist and complexity limits | P0 | open |  |  |  |  |
-| #8 | Synthetic-vs-real report labeling | P0 | open |  |  |  |  |
-| #11 | Walk-forward OOS evaluation | P1 | open |  |  |  |  |
+| #10 | Expression engine whitelist and complexity limits | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic expression safety checks and focused tests. Closed upstream with completion note on 2026-07-22. |
+| #8 | Synthetic-vs-real report labeling | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added visible `data_mode`/source metadata in reports and tests. Closed upstream with completion note on 2026-07-22. |
+| #11 | Walk-forward OOS evaluation | P1 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added chronological walk-forward output and report summary. Closed upstream with completion note on 2026-07-22. |
 | #12 | Trading feasibility constraints | P1 | open |  |  |  |  |
 | #20 | Re-skin factor detection and promotion policy | P1 | open |  |  |  |  |
-| #14, #16, #19 | Knowledge base and hypothesis card generation | P2 | open |  |  |  |  |
-| #18 | Missing-value handling handbook | P2 | open |  |  |  |  |
+| #14, #16, #19 | Knowledge base and hypothesis card generation | P2 | open |  |  |  | #14 and #16 closed for hypothesis-card/landing-chain scope. #19 remains open for a fuller A-share knowledge base. |
+| #18 | Missing-value handling handbook | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic field missing policy/generation context coverage. Closed upstream with completion note on 2026-07-22. |
 | #6 | Market-state/regime handling | P2 | open |  |  |  |  |
-| #9 | Standard factor explanation cards | P2 | open |  |  |  |  |
-| #13, #17 | Candidate factor ideas | P2 | open |  |  |  |  |
-| #5, #2 | Intake validation tickets | P3 | open |  |  |  |  |
+| #9 | Standard factor explanation cards | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added factor card output in backtest reports. Closed upstream with completion note on 2026-07-22. |
+| #13, #17 | Candidate factor ideas | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Registered cash-flow yield and delevered ROE as explainable seed/candidate factors. Closed upstream with completion note on 2026-07-22. |
+| #5 | Intake validation tickets | P3 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | #2 and #5 closed as validation-only on 2026-07-22; no product code change required. |
 
 ## Claim Examples
 
