@@ -154,6 +154,7 @@ def robustness_summary(
     rank_ic_series: pd.Series,
     novelty: dict[str, Any] | None = None,
     horizon_sensitivity: dict[str, Any] | None = None,
+    robustness_layers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     novelty = novelty or {}
     max_corr = float(novelty.get("max_abs_existing_corr", 0.0) or 0.0)
@@ -171,6 +172,12 @@ def robustness_summary(
         else:
             overfit_risk = "low"
     regime = regime_split_summary(rank_ic_series)
+    robustness_layers = robustness_layers or {}
+    market_regime = robustness_layers.get("market_regime", {}) if isinstance(robustness_layers, dict) else {}
+    industry = robustness_layers.get("industry", {}) if isinstance(robustness_layers, dict) else {}
+    style = robustness_layers.get("style", {}) if isinstance(robustness_layers, dict) else {}
+    universe = robustness_layers.get("universe", {}) if isinstance(robustness_layers, dict) else {}
+    rebalance_frequency = robustness_layers.get("rebalance_frequency", {}) if isinstance(robustness_layers, dict) else {}
     cost = _cost_sensitivity(summary)
     cost_grid = cost_sensitivity_grid(summary)
     tradable_net = tradability.get("tradable_net_long_short_mean") if isinstance(tradability, dict) else None
@@ -187,8 +194,19 @@ def robustness_summary(
         "walk_forward_stability": _walk_forward_risk(walk_forward),
         "regime_dependency": regime["status"],
         "regime_slices": regime["windows"],
-        "universe_stability": "not_tested_requires_multiple_universes",
-        "industry_stability": "not_tested_requires_industry_field",
+        "market_regime_stability": market_regime.get("status", "not_tested_requires_market_regime_slices"),
+        "market_regime_slices": market_regime.get("slices", []),
+        "universe_stability": universe.get("status", "not_tested_requires_universe_or_liquidity_slices"),
+        "universe_slices": universe.get("slices", []),
+        "industry_stability": industry.get("status", "not_tested_requires_industry_field"),
+        "industry_slices": industry.get("slices", []),
+        "style_stability": {
+            "size": style.get("size", {}).get("status", "not_tested_requires_mktcap_field") if isinstance(style, dict) else "not_tested_requires_mktcap_field",
+            "liquidity": style.get("liquidity", {}).get("status", "not_tested_requires_amount_field") if isinstance(style, dict) else "not_tested_requires_amount_field",
+        },
+        "style_slices": style,
+        "rebalance_frequency_stability": rebalance_frequency.get("status", "not_tested_requires_rebalance_frequency_run"),
+        "rebalance_frequency_slices": rebalance_frequency.get("slices", []),
         "horizon_stability": _horizon_stability(horizon_sensitivity),
         "horizon_sensitivity": horizon_sensitivity or {"status": "not_tested_requires_forward_column_grid_run", "windows": []},
         "cost_sensitivity": cost,
@@ -198,6 +216,8 @@ def robustness_summary(
     }
     report["robustness_summary"] = (
         f"similarity={report['similarity_risk']}; overfit={report['overfit_risk']}; "
-        f"walk_forward={report['walk_forward_stability']}; regime={report['regime_dependency']}; cost={report['cost_sensitivity']}"
+        f"walk_forward={report['walk_forward_stability']}; regime={report['regime_dependency']}; "
+        f"market_regime={report['market_regime_stability']}; industry={report['industry_stability']}; "
+        f"cost={report['cost_sensitivity']}"
     )
     return report

@@ -33,6 +33,20 @@ def _frame_records(frame: pd.DataFrame) -> list[dict[str, Any]]:
     return frame.reset_index().to_dict(orient="records")
 
 
+def _public_json(value: Any) -> Any:
+    if isinstance(value, pd.Series):
+        return _series_records(value)
+    if isinstance(value, pd.DataFrame):
+        return _frame_records(value)
+    if isinstance(value, dict):
+        return {key: _public_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_public_json(item) for item in value]
+    if isinstance(value, tuple):
+        return [_public_json(item) for item in value]
+    return value
+
+
 def _factor_quality(result: dict) -> dict[str, Any]:
     factor = result.get("factor")
     if not isinstance(factor, pd.Series) or factor.empty:
@@ -154,6 +168,13 @@ def _evaluation_layers(result: dict) -> dict[str, Any]:
         "cost_convention": data.get("robustness_policy", {}).get("cost_convention") if isinstance(data, dict) else None,
         "a_share_cost_reality_checks": data.get("robustness_policy", {}).get("a_share_reality_checks") if isinstance(data, dict) else None,
         "tradable_net_long_short_mean": tradable_summary.get("net_long_short_mean"),
+        "executable_long_short_mean": tradability.get("executable_long_short_mean") if isinstance(tradability, dict) else None,
+        "executable_net_long_short_mean": tradability.get("executable_net_long_short_mean") if isinstance(tradability, dict) else None,
+        "fill_rate_mean": tradability.get("fill_rate_mean") if isinstance(tradability, dict) else None,
+        "impact_cost_mean": tradability.get("impact_cost_mean") if isinstance(tradability, dict) else None,
+        "blocked_buy_notional": tradability.get("blocked_buy_notional") if isinstance(tradability, dict) else None,
+        "blocked_sell_notional": tradability.get("blocked_sell_notional") if isinstance(tradability, dict) else None,
+        "partial_fill_notional": tradability.get("partial_fill_notional") if isinstance(tradability, dict) else None,
         "dropped_observations": tradability.get("dropped_observations") if isinstance(tradability, dict) else None,
         "annualized_return": "not_computed_requires_portfolio_equity_curve",
         "excess_return": "not_computed_requires_benchmark_returns",
@@ -170,8 +191,11 @@ def _evaluation_layers(result: dict) -> dict[str, Any]:
         "nearest_factor": robustness.get("nearest_factor") if isinstance(robustness, dict) else None,
         "max_abs_existing_corr": robustness.get("max_abs_existing_corr") if isinstance(robustness, dict) else None,
         "regime_dependency": robustness.get("regime_dependency") if isinstance(robustness, dict) else None,
+        "market_regime_stability": robustness.get("market_regime_stability") if isinstance(robustness, dict) else None,
         "universe_stability": robustness.get("universe_stability") if isinstance(robustness, dict) else None,
         "industry_stability": robustness.get("industry_stability") if isinstance(robustness, dict) else None,
+        "style_stability": robustness.get("style_stability") if isinstance(robustness, dict) else None,
+        "rebalance_frequency_stability": robustness.get("rebalance_frequency_stability") if isinstance(robustness, dict) else None,
         "market_beta_exposure": "not_computed_requires_benchmark_returns",
         "size_style_exposure": "not_computed_requires_style_factor_panel",
         "industry_exposure": "not_computed_requires_industry_field",
@@ -189,14 +213,15 @@ def to_report(result: dict, path: str | Path | None = None) -> Path:
     report_dir = Path(path) if path is not None else CONFIG.report_dir / result["summary"]["name"]
     report_dir.mkdir(parents=True, exist_ok=True)
     payload = {
-        "expr": result["expr"],
-        "summary": result["summary"],
-        "train_summary": result.get("train_summary", {}),
-        "data": result.get("data", {}),
-        "walk_forward": result.get("walk_forward", {}),
-        "tradability": result.get("tradability", {}),
-        "robustness": result.get("robustness", {}),
-        "evaluation_layers": _evaluation_layers(result),
+        "expr": _public_json(result["expr"]),
+        "summary": _public_json(result["summary"]),
+        "train_summary": _public_json(result.get("train_summary", {})),
+        "data": _public_json(result.get("data", {})),
+        "walk_forward": _public_json(result.get("walk_forward", {})),
+        "tradability": _public_json(result.get("tradability", {})),
+        "robustness_layers": _public_json(result.get("robustness_layers", {})),
+        "robustness": _public_json(result.get("robustness", {})),
+        "evaluation_layers": _public_json(_evaluation_layers(result)),
         "rank_ic": _series_records(result["rank_ic"]),
         "quantile_returns": _frame_records(result["quantile_returns"]),
         "long_short": _series_records(result["long_short"]),
@@ -293,6 +318,12 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
         f"- Cost bps: `{strategy.get('cost_bps', 'n/a')}`",
         f"- Cost convention: {strategy.get('cost_convention', 'n/a')}",
         f"- Tradable net long-short mean: `{_format_metric(strategy.get('tradable_net_long_short_mean'))}`",
+        f"- Executable net long-short mean: `{_format_metric(strategy.get('executable_net_long_short_mean'))}`",
+        f"- Fill rate mean: `{_format_metric(strategy.get('fill_rate_mean'))}`",
+        f"- Impact cost mean: `{_format_metric(strategy.get('impact_cost_mean'))}`",
+        f"- Blocked buy notional: `{_format_metric(strategy.get('blocked_buy_notional'))}`",
+        f"- Blocked sell notional: `{_format_metric(strategy.get('blocked_sell_notional'))}`",
+        f"- Partial fill notional: `{_format_metric(strategy.get('partial_fill_notional'))}`",
         f"- Dropped observations: `{strategy.get('dropped_observations', 'n/a')}`",
         f"- Annualized return: `{strategy.get('annualized_return', 'n/a')}`",
         f"- Excess return: `{strategy.get('excess_return', 'n/a')}`",
@@ -307,8 +338,11 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
         f"- Nearest factor: `{risk.get('nearest_factor', 'n/a')}`",
         f"- Max abs existing correlation: `{_format_metric(risk.get('max_abs_existing_corr'))}`",
         f"- Regime dependency: `{risk.get('regime_dependency', 'n/a')}`",
+        f"- Market regime stability: `{risk.get('market_regime_stability', 'n/a')}`",
         f"- Universe stability: `{risk.get('universe_stability', 'n/a')}`",
         f"- Industry stability: `{risk.get('industry_stability', 'n/a')}`",
+        f"- Style stability: `{risk.get('style_stability', 'n/a')}`",
+        f"- Rebalance frequency stability: `{risk.get('rebalance_frequency_stability', 'n/a')}`",
         f"- Market beta exposure: `{risk.get('market_beta_exposure', 'n/a')}`",
         f"- Size/style exposure: `{risk.get('size_style_exposure', 'n/a')}`",
         f"- Neutralized Rank IC delta: `{risk.get('neutralized_rank_ic_delta', 'n/a')}`",
@@ -327,6 +361,9 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
         f"- Overfit risk: `{robustness.get('overfit_risk', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
         f"- Walk-forward stability: `{robustness.get('walk_forward_stability', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
         f"- Regime dependency: `{robustness.get('regime_dependency', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
+        f"- Market regime stability: `{robustness.get('market_regime_stability', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
+        f"- Industry stability: `{robustness.get('industry_stability', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
+        f"- Rebalance frequency stability: `{robustness.get('rebalance_frequency_stability', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
         f"- Cost sensitivity: `{robustness.get('cost_sensitivity', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
         f"- Horizon stability: `{robustness.get('horizon_stability', 'n/a') if isinstance(robustness, dict) else 'n/a'}`",
         "",
@@ -336,6 +373,9 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
         f"- Dropped observations: `{tradability.get('dropped_observations', 'n/a') if isinstance(tradability, dict) else 'n/a'}`",
         f"- Ideal net long-short mean: `{_format_metric(tradability.get('ideal_net_long_short_mean') if isinstance(tradability, dict) else None)}`",
         f"- Tradable net long-short mean: `{_format_metric(tradable_summary.get('net_long_short_mean'))}`",
+        f"- Executable net long-short mean: `{_format_metric(tradability.get('executable_net_long_short_mean') if isinstance(tradability, dict) else None)}`",
+        f"- Fill rate mean: `{_format_metric(tradability.get('fill_rate_mean') if isinstance(tradability, dict) else None)}`",
+        f"- Impact cost mean: `{_format_metric(tradability.get('impact_cost_mean') if isinstance(tradability, dict) else None)}`",
         "",
     ]
     (report_dir / "factor_card.md").write_text("\n".join(lines), encoding="utf-8")
