@@ -8,6 +8,7 @@ import pandas as pd
 from src.factors.engine import FactorExpr, evaluate, expression_names
 from src.llm.client import LLMClient
 from src.llm.prompts import VALIDATE_SEMANTIC_PROMPT
+from src.utils.field_availability import validate_field_availability
 
 
 FORBIDDEN_FIELDS = {"fwd_ret", "fwd_ret_1", "fwd_ret_5", "fwd_ret_20", "future_return", "label"}
@@ -72,6 +73,9 @@ def validate(
     if not ok:
         return False, reason
     if panel is not None:
+        ok, reason = validate_field_availability(used_names | declared, panel)
+        if not ok:
+            return False, reason
         try:
             evaluated = evaluate(expr, panel)
         except Exception as exc:

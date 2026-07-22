@@ -57,3 +57,29 @@
 ## 面板约定
 
 处理后的 `panel` 使用 `MultiIndex[date, code]`,其中 `date` 为交易日、`code` 为股票代码。行情字段来自当日市场数据;财务字段来自 `pit_merge`,保证每行只包含当日已经公告的数据。未来收益由 `get_forward_returns` 单独生成,列名为 `fwd_ret_1`, `fwd_ret_5`, `fwd_ret_20`,不得作为因子表达式可用字段。
+
+## 字段可得性元数据
+
+`panel.attrs["field_availability"]` 是面板构建时附带的内存审计契约,用于说明每个可用于因子表达式的字段在 T 日为何可见。该元数据不替代原始数据校验,但校验层和回测层会据此 fail closed:表达式引用 PIT 敏感字段而缺少可得性证明时,应拒绝执行。
+
+每个字段的元数据至少包含:
+
+| key | dtype | meaning |
+|---|---:|---|
+| `field` | `string` | 字段名。 |
+| `source` | `string` | 字段来源,如 `prices`、`fundamentals`、`derived`、`universe`。 |
+| `available_date` | `string` | 信息可得性的日期锚点,如 `date`、`ann_date`、`effective_date`。 |
+| `rule` | `string` | 可得性规则的简短说明。 |
+| `pit_protected` | `bool` | 是否已经满足点时间约束。 |
+| `inputs` | `list[string]` | 可选。推导字段依赖的输入字段。 |
+
+来源规则如下:
+
+| source | rule |
+|---|---|
+| `prices` | 当日市场字段只能使用同一交易日数据,`available_date = date`。`open/high/low/close/vol/amount` 可按同日行情视为安全;`adj_factor`、`mktcap`、`industry` 等字段必须显式记录来源或推导规则。 |
+| `fundamentals` | 财务字段只能由 `pit_merge` 写入,`available_date = ann_date`,且每个 `(date, code)` 单元只能选择最新的 `ann_date <= date` 记录。 |
+| `derived` | 推导字段在所有输入字段都 PIT 安全时才安全。例如当前缺失原始市值时,`mktcap = close * shares_outstanding`,其中 `shares_outstanding` 必须来自 PIT 合并后的财务记录。 |
+| `universe` | 股票池字段来自历史股票池或成分权重,使用同一交易日或有效日,不能用当前成分股回填历史。 |
+
+需要特别区分代码可证明的边界与外部假设:本项目能测试 `pit_merge` 不会把 `ann_date > date` 的记录并入 T 日面板,并能拒绝绕过元数据的因子/回测路径;但原始库中 `ann_date` 是否真实、财务内容是否混入事后修订、供应商复权字段是否按研究口径正确构造,仍属于数据供应商和抽取流程假设。若从持久化文件重新加载后丢失 `attrs`,应重新构建或补齐元数据,而不是默认放行 PIT 敏感字段。

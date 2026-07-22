@@ -6,6 +6,7 @@ import pandas as pd
 
 from src.config import CONFIG, Config
 from src.utils.align import pit_merge
+from src.utils.field_availability import attach_field_availability, derived_field_metadata, get_field_availability, set_field_metadata
 from src.utils.synthetic import make_synthetic_data
 
 
@@ -72,7 +73,10 @@ def build_panel(cfg: Config = CONFIG, save: bool = True) -> pd.DataFrame:
     universe = load_universe(cfg)[["date", "code"]].drop_duplicates()
     filtered_prices = prices.merge(universe, on=["date", "code"], how="inner")
     panel = pit_merge(filtered_prices, fundamentals)
-    panel = _fill_pit_safe_mktcap(panel).set_index(["date", "code"]).sort_index()
+    panel = _fill_pit_safe_mktcap(panel)
+    metadata = get_field_availability(panel)
+    panel = panel.set_index(["date", "code"]).sort_index()
+    panel = attach_field_availability(panel, metadata)
     if save:
         path = cfg.processed_dir / "panel.parquet"
         _safe_to_parquet(panel, path)
@@ -90,6 +94,15 @@ def _fill_pit_safe_mktcap(panel: pd.DataFrame) -> pd.DataFrame:
         out["mktcap"] = pd.to_numeric(out["mktcap"], errors="coerce").fillna(inferred)
     else:
         out["mktcap"] = inferred
+    set_field_metadata(
+        out,
+        "mktcap",
+        derived_field_metadata(
+            "mktcap",
+            ["close", "shares_outstanding"],
+            "close multiplied by PIT-merged shares_outstanding when raw market cap is unavailable",
+        ),
+    )
     return out
 
 

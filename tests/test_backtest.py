@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.backtest.metrics import rank_ic
 from src.backtest.report import to_report
@@ -44,3 +45,13 @@ def test_backtest_does_not_need_llm():
     fwd = get_forward_returns(load_prices(), periods=(5,))
     result = backtest(expr, panel, fwd, n_quantiles=3)
     assert "summary" in result
+
+
+def test_backtest_rejects_unproven_fundamental_fields():
+    expr = FactorExpr("raw_quality", "rank(safe_div(net_income, total_equity))", "test", ["net_income", "total_equity"])
+    panel = build_panel(save=False).copy()
+    panel.attrs.clear()
+    fwd = get_forward_returns(load_prices(), periods=(5,))
+
+    with pytest.raises(ValueError, match="field availability"):
+        backtest(expr, panel, fwd, n_quantiles=3)

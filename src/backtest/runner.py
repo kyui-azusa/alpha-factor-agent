@@ -4,7 +4,8 @@ import pandas as pd
 
 from src.backtest.metrics import ic_ir, long_short_return, quantile_returns, rank_ic, turnover
 from src.config import CONFIG, Config
-from src.factors.engine import FactorExpr, evaluate
+from src.factors.engine import FactorExpr, evaluate, expression_names
+from src.utils.field_availability import validate_field_availability
 
 
 def backtest(
@@ -15,6 +16,9 @@ def backtest(
     forward_column: str = "fwd_ret_5",
     n_quantiles: int = 5,
 ) -> dict:
+    ok, reason = validate_field_availability(expression_names(expr.expression) | set(expr.fields_used), panel)
+    if not ok:
+        raise ValueError(f"factor field availability check failed: {reason}")
     factor = evaluate(expr, panel)
     if isinstance(fwd_ret, pd.DataFrame):
         returns = fwd_ret[forward_column]

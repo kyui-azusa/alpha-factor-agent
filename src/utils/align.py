@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.utils.field_availability import attach_field_availability, build_pit_merge_metadata
+
 
 def _as_datetime(df: pd.DataFrame, columns: tuple[str, ...]) -> pd.DataFrame:
     out = df.copy()
@@ -48,7 +50,9 @@ def pit_merge(prices: pd.DataFrame, fundamentals: pd.DataFrame) -> pd.DataFrame:
         )
         merged_parts.append(merged)
 
-    return pd.concat(merged_parts, ignore_index=True).sort_values(["date", "code"]).reset_index(drop=True)
+    merged_panel = pd.concat(merged_parts, ignore_index=True).sort_values(["date", "code"]).reset_index(drop=True)
+    metadata = build_pit_merge_metadata(list(price_data.columns), fundamental_columns)
+    return attach_field_availability(merged_panel, metadata)
 
 
 def winsorize(s: pd.Series, lower: float = 0.01, upper: float = 0.99) -> pd.Series:
