@@ -30,18 +30,19 @@ DIST = ROOT / "dist"
 ISSUE_TYPES = ["功能", "缺陷", "问题", "建议"]
 PRIORITIES = ["低", "中", "高"]
 
+# 站点左上角的品牌标记(.brand .logo:圆角方块 + 紫青渐变 + 紫色辉光)原样搬成 favicon,
+# 两处必须一致 —— 改渐变色时记得同步 style.css 的 --a1/--a2。
 FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="g" x1="12" y1="10" x2="52" y2="54" gradientUnits="userSpaceOnUse">
+    <linearGradient id="g" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
       <stop stop-color="#7c5cff"/>
       <stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
     <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#7c5cff" flood-opacity=".55"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#7c5cff" flood-opacity=".55"/>
     </filter>
   </defs>
-  <rect x="10" y="10" width="44" height="44" rx="15" fill="url(#g)" filter="url(#s)"/>
-  <path d="M24 40V24h5.3l8.3 10.4V24H42v16h-5.1l-8.5-10.6V40H24Z" fill="#06070e"/>
+  <rect x="8" y="8" width="48" height="48" rx="16" fill="url(#g)" filter="url(#s)"/>
 </svg>"""
 FAVICON_HREF = "data:image/svg+xml," + urllib.parse.quote(FAVICON_SVG, safe="/:;=?&,%#")
 
@@ -219,6 +220,28 @@ def render_showcase(items: list[dict]) -> str:
 </section>"""
 
 
+# 评价指标不进画布:它跟每个因子都连,画进去就是一片蜘蛛网,还白占一整列。
+# 改成浮在画布右上角的贴片,点它照样高亮完整上游链路(ADR-0019 的论点不变)。
+OVERLAY_LAYERS = frozenset({"metric"})
+
+
+def render_metric_card(g: "graph_mod.Graph") -> str:
+    layer = next((l for l in g.layers if l["id"] in OVERLAY_LAYERS), None)
+    ids = [n for lid in OVERLAY_LAYERS for n in g.nodes_in(lid)]
+    if not layer or not ids:
+        return ""
+    hue = graph_mod.LAYER_HUE.get(layer["id"], 320)
+    chips = "".join(
+        f'<button type="button" class="m-chip{" has-guard" if g.guards_of(nid) else ""}" '
+        f'data-node="{_esc(nid)}">{_esc(g.nodes[nid].get("label", nid))}</button>'
+        for nid in ids
+    )
+    return f"""<aside class="metrics" data-metrics style="--m-hue:{hue}">
+            <span class="m-head">{_esc(layer["label"])}<em>{_esc(layer.get("note", ""))}</em></span>
+            <div class="m-chips">{chips}</div>
+          </aside>"""
+
+
 def render_graph_section() -> tuple[str, str]:
     """方法依赖图。返回 (HTML, 喂给 JS 的 JSON)。图不存在时静默跳过。"""
     if not graph_mod.GRAPH_FILE.exists():
@@ -226,31 +249,43 @@ def render_graph_section() -> tuple[str, str]:
     g = graph_mod.load_graph()
     if not graph_mod.is_dag(g):
         raise ValueError("graph.yaml 有环:回溯会死循环")
-    svg = graph_mod.render_svg(g, graph_mod.layout(g))
+    laid = graph_mod.layout(g, exclude=OVERLAY_LAYERS)
+    svg = graph_mod.render_svg(g, laid)
     payload = json.dumps(graph_mod.node_payload(g), ensure_ascii=False, separators=(",", ":"))
     legend = "".join(
-        f'<span class="lg"><i style="background:hsl({graph_mod.LAYER_HUE.get(l["id"], 220)} 70% 62%)"></i>'
+        f'<span class="lg"><i style="background:hsl({graph_mod.LAYER_HUE.get(l["id"], 220)} 70% var(--g-lum))"></i>'
         f'{_esc(l["label"])}</span>'
         for l in g.layers
     )
-    html_block = f"""<section id="graph" class="graph-wrap reveal">
-  <div class="section-label"><span>方法依赖图</span><em>{len(g.nodes)} 节点 · {len(g.edges)} 依赖</em></div>
-  <p class="graph-lede">论文说因子的可解释性"可一路回溯到具体字段与有限算子"。<strong>点任意节点,看它的完整上游链路</strong> —— 这张图就是那句话的证据。</p>
-  <div class="graph-legend">{legend}<span class="lg guard"><i></i>带防线的节点</span></div>
-  <div class="graph-stage">
-    <div class="graph-col">
-      <div class="graph-scroll" data-graph-scroll>{svg}</div>
-      <p class="graph-hint" data-graph-hint>← 左右滑动查看完整图 →</p>
+    # --canvas 是图的自然宽度:展开的终点与 svg 宽度都由它算,别再各处写死数字。
+    # 注意 reveal 只挂在导语上,**不能挂在 section 上** —— 入场动画的 transform 会成为
+    # 里面 position:sticky 的包含块,那 0.6s 里粘住的图会跟着位移 16px,看着就是"抖一下"。
+    html_block = f"""<section id="graph" class="graph-wrap" style="--canvas:{laid['width']}px">
+  <div class="graph-intro reveal">
+    <div class="section-label"><span>方法依赖图</span><em>{len(g.nodes)} 节点 · {len(g.edges)} 依赖</em></div>
+    <p class="graph-lede">论文说因子的可解释性"可一路回溯到具体字段与有限算子"。<strong>点任意节点(含右上角的评价指标),看它的完整上游链路</strong> —— 这张图就是那句话的证据。</p>
+    <div class="graph-legend">{legend}<span class="lg guard"><i></i>带防线的节点</span></div>
+  </div>
+  <div class="graph-track" data-graph-track>
+    <div class="graph-sticky" data-graph-sticky>
+      <div class="graph-stage graph-bleed">
+        <div class="graph-col">
+          <div class="graph-scroll" data-graph-scroll>{svg}</div>
+          {render_metric_card(g)}
+          <p class="graph-hint" data-graph-hint>← 左右滑动查看完整图 →</p>
+        </div>
+        <aside class="trace" data-trace hidden>
+        <button type="button" class="trace-close" data-trace-close aria-label="关闭">×</button>
+        <span class="trace-layer" data-trace-layer></span>
+        <h3 data-trace-title></h3>
+        <p class="trace-one" data-trace-one></p>
+        <div class="trace-guards" data-trace-guards></div>
+        <div class="trace-chain" data-trace-chain></div>
+        <div class="trace-refs" data-trace-refs></div>
+        </aside>
+      </div>
     </div>
-    <aside class="trace" data-trace hidden>
-    <button type="button" class="trace-close" data-trace-close aria-label="关闭">×</button>
-    <span class="trace-layer" data-trace-layer></span>
-    <h3 data-trace-title></h3>
-    <p class="trace-one" data-trace-one></p>
-    <div class="trace-guards" data-trace-guards></div>
-    <div class="trace-chain" data-trace-chain></div>
-    <div class="trace-refs" data-trace-refs></div>
-    </aside>
+    <div class="graph-runway" aria-hidden="true"></div>
   </div>
 </section>"""
     return html_block, payload
@@ -336,6 +371,27 @@ def render_form() -> str:
 </section>"""
 
 
+# 主题在 <head> 里就定下来:等到底部 JS 再切会先闪一帧深色,白天看着刺眼。
+# 无历史选择时跟随系统 —— 白天系统本来就是浅色。
+THEME_BOOT_JS = (
+    "(function(){try{var s=localStorage.getItem('alpha-theme');"
+    "var t=(s==='light'||s==='dark')?s:"
+    "((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');"
+    "document.documentElement.setAttribute('data-theme',t);}catch(e){}})();"
+)
+
+THEME_TOGGLE = (
+    '<button type="button" class="theme-toggle" data-theme-toggle aria-label="切换配色">'
+    '<svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true">'
+    '<circle cx="12" cy="12" r="4"/>'
+    '<path d="M12 2.6v2M12 19.4v2M4.4 4.4l1.4 1.4M18.2 18.2l1.4 1.4'
+    'M2.6 12h2M19.4 12h2M4.4 19.6l1.4-1.4M18.2 5.8l1.4-1.4"/></svg>'
+    '<svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true">'
+    '<path d="M20 14.6A8.6 8.6 0 0 1 9.4 4 7.1 7.1 0 1 0 20 14.6Z"/></svg>'
+    "</button>"
+)
+
+
 def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
     graph_html, graph_data = render_graph_section()
     cards = "\n".join(render_packet_card(p) for p in packets) or "<p>还没有想法卡片。</p>"
@@ -355,10 +411,11 @@ def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <link rel="icon" type="image/svg+xml" href="{FAVICON_HREF}">
 <link rel="shortcut icon" type="image/svg+xml" href="{FAVICON_HREF}">
 <title>Alpha 研学 · 想法流</title>
+<script>{THEME_BOOT_JS}</script>
 <style>
 {css}
 </style>
@@ -367,7 +424,7 @@ def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
 <div class="bg" aria-hidden="true"><div class="aurora"></div><div class="grid-overlay"></div></div>
 <header class="site">
   <a class="brand" href="#top"><span class="logo"></span>Alpha 研学</a>
-  <nav><a href="#feed">想法流</a>{'<a href="#graph">方法图</a>' if graph_html else ''}{'<a href="#showcase">成果</a>' if showcase else ''}<a href="#submit" class="nav-cta">提问 / 建议</a></nav>
+  <nav><a href="#feed">想法流</a>{'<a href="#graph">方法图</a>' if graph_html else ''}{'<a href="#showcase">成果</a>' if showcase else ''}<a href="#submit" class="nav-cta">提问 / 建议</a>{THEME_TOGGLE}</nav>
 </header>
 <main id="top">
 {hero}
@@ -427,17 +484,29 @@ GRAPH_JS = """
     });
   }
 
+  // 评价指标是浮在画布上的贴片(不在 SVG 里),但点它要和点节点完全一样
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.m-chip'));
+  function syncChips(id) {
+    chips.forEach(function (c) { c.classList.toggle('is-on', c.dataset.node === id); });
+  }
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () { select(c.dataset.node); });
+  });
+
   function reset() {
     svg.querySelectorAll('.g-node, .g-edge').forEach(function (el) {
       el.classList.remove('lit'); el.classList.remove('dim');
     });
+    syncChips(null);
     panel.hidden = true;
     if (stage) stage.classList.remove('with-panel');
+    syncHint();          // 面板收起后画布变宽,提示行要跟着重算
   }
 
   function select(id) {
     var lit = ancestors(id);
     lit[id] = 1;
+    syncChips(id);
     svg.querySelectorAll('.g-node').forEach(function (el) {
       var on = lit[el.dataset.node];
       el.classList.toggle('lit', !!on);
@@ -484,6 +553,7 @@ GRAPH_JS = """
 
     panel.hidden = false;
     if (stage) stage.classList.add('with-panel');
+    syncHint();          // 面板占掉 330px 后画布又变窄,提示行要跟着重算
     keepVisible(id);
   }
 
@@ -508,18 +578,127 @@ GRAPH_JS = """
   panel.querySelector('[data-trace-close]').addEventListener('click', reset);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') reset(); });
 
-  // 图比屏幕宽时才提示可横向滑动
+  // 图比屏幕宽时才提示可横向滑动。
+  // 带滞回(12px 才亮、≤2px 才灭)且只改透明度不改 display —— 临界点上宽度来回一两像素时,
+  // 用 display 会一边抽一边改变页面高度,底下的内容跟着跳。
   var scroller = document.querySelector('[data-graph-scroll]');
   var hint = document.querySelector('[data-graph-hint]');
   function syncHint() {
-    if (scroller && hint) hint.style.display = scroller.scrollWidth > scroller.clientWidth + 4 ? '' : 'none';
+    if (!scroller || !hint) return;
+    var over = scroller.scrollWidth - scroller.clientWidth;
+    if (over > 12) hint.classList.remove('is-off');
+    else if (over <= 2) hint.classList.add('is-off');
   }
   syncHint();
-  window.addEventListener('resize', syncHint);
+
+  // 展开:滚到这一节先粘住,把画布从版心宽推到整张图放得下(--gx 0→1),再放行
+  var wrap = document.querySelector('.graph-wrap');
+  var track = document.querySelector('[data-graph-track]');
+  var stick = document.querySelector('[data-graph-sticky]');
+  var runway = document.querySelector('.graph-runway');
+  var canStick = window.matchMedia('(min-width: 820px) and (min-height: 760px) and (prefers-reduced-motion: no-preference)');
+  var geo = null;        // 几何只在 resize 时量一次;滚动中只做算术,不读布局
+  var queued = false;
+  var lastP = -1;
+
+  function measure() {
+    if (!canStick.matches) {
+      geo = null;
+      wrap.style.removeProperty('--gx');   // 交回给 CSS(窄屏/矮屏直接是展开态)
+      lastP = -1;
+      return;
+    }
+    // 行程直接取跑道高度:它不受提示行显隐影响,量出来才稳
+    var span = runway.offsetHeight;
+    var top = parseFloat(getComputedStyle(stick).top) || 0;
+    // 用 offsetTop 累加而不是 getBoundingClientRect:.reveal 入场时带着 transform,
+    // rect 会把那 16px 位移一起量进去,算出来的起点偏一截
+    var y = 0;
+    for (var el = track; el; el = el.offsetParent) y += el.offsetTop;
+    geo = span > 8 ? { start: y - top, span: span } : null;
+  }
+
+  function apply() {
+    queued = false;
+    if (!geo) return;
+    var p = (window.scrollY - geo.start) / geo.span;
+    // 两端吸附 + 量化到 1%:临界点附近不再因为亚像素抖动反复改样式
+    p = p < 0.02 ? 0 : p > 0.98 ? 1 : p;
+    p = p * p * (3 - 2 * p);                              // smoothstep:两头缓,中段跟手
+    p = Math.round(p * 100) / 100;
+    if (p === lastP) return;
+    lastP = p;
+    wrap.style.setProperty('--gx', p);
+    syncHint();
+  }
+
+  function onScroll() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(apply);
+  }
+
+  var resizeTimer = null;
+  function onResize() {
+    // 重量一次的活儿防抖:拖窗口 / 手机地址栏收放会连着触发几十次 resize
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      measure();
+      lastP = -1;
+      apply();
+      syncHint();
+    }, 120);
+  }
+
+  if (wrap && track && stick && runway) {
+    measure();
+    apply();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize);
+    window.addEventListener('load', onResize);   // 字体/图加载完位置会挪,重量一次
+    if (canStick.addEventListener) canStick.addEventListener('change', onResize);
+  }
 })();
 """
 
 JS = """
+// 配色切换:选择记在 localStorage;没选过就跟随系统(含系统白天/夜间的实时切换)
+(function () {
+  var root = document.documentElement;
+  var btn = document.querySelector('[data-theme-toggle]');
+  var KEY = 'alpha-theme';
+  function label() {
+    var light = root.getAttribute('data-theme') === 'light';
+    var text = light ? '切换到深色' : '切换到浅色';
+    if (!btn) return;
+    btn.setAttribute('aria-label', text);
+    btn.setAttribute('title', text);
+    btn.setAttribute('aria-pressed', String(light));
+  }
+  function stored() {
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
+  }
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+      label();
+    });
+  }
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: light)');
+    var follow = function (e) {
+      if (stored()) return;   // 手动选过就不再被系统覆盖
+      root.setAttribute('data-theme', e.matches ? 'light' : 'dark');
+      label();
+    };
+    if (mq.addEventListener) mq.addEventListener('change', follow);
+    else if (mq.addListener) mq.addListener(follow);
+  }
+  label();
+})();
+
 // 站内阅读:iframe 懒加载,点开才请求(574KB 的 PDF 不该拖慢首屏)
 document.querySelectorAll('[data-embed]').forEach(function (btn) {
   btn.addEventListener('click', function () {
