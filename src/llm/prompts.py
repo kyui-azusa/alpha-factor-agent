@@ -14,9 +14,13 @@ name, expression, economic_rationale, fields_used, and metadata.
 metadata must contain: category, seed_factors, generation_method, alpha_target,
 economic_mechanism, field_sources, a_share_mapping, direction, scope,
 backtestable_status, status_reason, risk_exposures, validation_notes,
-source_seed_factors, synthesis_method, mechanism_change, expression_version, lineage.
+source_seed_factors, synthesis_method, mechanism_change, expression_version, lineage,
+knowledge_citations. Every currently_backtestable candidate must cite the knowledge_source_id
+for each field it uses. Use only fields present in the provided formal field_catalog.
 Use one of the provided synthesis_methods and record how the expression descends from seed_factor_lineage.
-Use only safe expression functions: rank, cs_rank, ts_mean, ts_std, delay, delta, safe_div, signed_log.
+Use only safe expression functions: rank, cs_rank, ts_mean, ts_std, delay, delta, safe_div, signed_log, where.
+where(condition, on_true, on_false) accepts only a provided binary regime field as its condition;
+comparisons and Python if expressions remain forbidden.
 Do not use fwd_ret_* or future returns. If a hypothesis is not currently backtestable with the catalog,
 mark backtestable_status accordingly instead of inventing fields."""
 

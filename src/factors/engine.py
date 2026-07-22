@@ -78,6 +78,7 @@ def _validate_ast(tree: ast.AST, allowed_names: set[str], allowed_funcs: set[str
     for node in ast.walk(tree):
         if not isinstance(node, ALLOWED_AST_NODES):
             raise ValueError(f"Unsupported expression syntax: {type(node).__name__}")
+    for node in ast.walk(tree):
         if isinstance(node, ast.Name) and node.id not in allowed_names and node.id not in allowed_funcs:
             raise ValueError(f"Unknown field or function: {node.id}")
         if isinstance(node, ast.Call):
@@ -85,6 +86,11 @@ def _validate_ast(tree: ast.AST, allowed_names: set[str], allowed_funcs: set[str
                 raise ValueError("Only registered factor functions can be called")
             if node.keywords:
                 raise ValueError("Keyword arguments are not supported in factor expressions")
+            if node.func.id == "where":
+                if len(node.args) != 3:
+                    raise ValueError("where requires condition, on_true, and on_false")
+                if not isinstance(node.args[0], ast.Name) or not node.args[0].id.startswith("regime_"):
+                    raise ValueError("where condition must be a registered regime_ field")
             if node.func.id in {"delay", "delta", "ts_mean", "ts_std"} and len(node.args) >= 2:
                 value = _numeric_constant(node.args[1])
                 if value is None:
@@ -137,6 +143,28 @@ def safe_div(left: pd.Series | float, right: pd.Series | float) -> pd.Series | f
     return left / (right if right != 0 else np.nan)
 
 
+def where(
+    condition: pd.Series,
+    on_true: pd.Series | float,
+    on_false: pd.Series | float,
+) -> pd.Series:
+    if not isinstance(condition, pd.Series):
+        raise ValueError("where condition must be a registered binary state field")
+    observed = set(pd.to_numeric(condition, errors="coerce").dropna().unique())
+    if not observed <= {0.0, 1.0}:
+        raise ValueError("where condition must contain only binary 0/1 state values")
+    if isinstance(on_true, pd.Series):
+        index = on_true.index
+    elif isinstance(on_false, pd.Series):
+        index = on_false.index
+    else:
+        index = condition.index
+    mask = condition.reindex(index).astype("boolean")
+    true_value = on_true.reindex(index) if isinstance(on_true, pd.Series) else on_true
+    false_value = on_false.reindex(index) if isinstance(on_false, pd.Series) else on_false
+    return pd.Series(np.where(mask.fillna(False), true_value, false_value), index=index).where(mask.notna())
+
+
 FACTOR_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "abs": abs,
     "cs_rank": cs_rank,
@@ -147,6 +175,7 @@ FACTOR_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "delta": delta,
     "signed_log": signed_log,
     "safe_div": safe_div,
+    "where": where,
 }
 
 
