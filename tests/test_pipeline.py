@@ -1,3 +1,5 @@
+import pytest
+
 from src.config import Config
 from src.factors.baseline import BASELINE_FACTORS
 from src.pipeline import run_project
@@ -22,3 +24,12 @@ def test_export_summary_has_headers_when_no_candidate_factors(tmp_path):
     assert list(frame.columns) == SUMMARY_COLUMNS
     assert frame.empty
     assert path.endswith("factor_summary.csv")
+
+
+def test_pipeline_agent_mode_requires_preflight_permit(tmp_path):
+    cfg = Config(data_dir=tmp_path / "data", results_dir=tmp_path / "results", llm_backend="mock")
+
+    with pytest.raises(PermissionError, match="passing preflight"):
+        run_project(cfg=cfg, include_agent=True)
+
+    assert not cfg.results_dir.exists()
