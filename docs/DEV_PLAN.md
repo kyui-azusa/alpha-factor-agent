@@ -1,6 +1,6 @@
 # Local Development Plan
 
-Updated: 2026-07-22 23:16 +0800
+Updated: 2026-07-23 10:40 +0800
 
 This file is the local planning board for turning feedback issues into implementation work. GitHub Issues remain the raw intake source; this document is the working summary used before starting code changes, so different Codex runs or teammates do not accidentally fix the same ticket twice.
 
@@ -84,6 +84,14 @@ These make the numerical results more defensible once correctness is intact.
 | #12 | Trading feasibility constraints | A-share stop/limit/liquidity constraints can make paper returns unrealizable. | Add optional constraints to portfolio construction/reporting; keep ideal and feasible results side by side. |
 | #20 | Re-skin factor detection and promotion policy | Avoids promoting near-duplicate factors that pass IC by minor variation. | Extend novelty checks beyond strict correlation and document promotion rules. |
 
+### P1 Defense Demonstration
+
+This workstream is user-directed and has no GitHub issue. It is tracked here rather than being assigned a fabricated issue number.
+
+| Source | Workstream | Why it matters | Scope and acceptance |
+|---|---|---|---|
+| User-directed | Event announcement -> market reaction research panel | Turns the research question into a defense-ready, inspectable demonstration without putting numerical work or secrets in a browser service. | Independent `panel/` Vue app; build-time adjusted market/event/factor JSON; P0/P1/P2 and offline presets; optional user-configured LLM only maps natural language to existing view parameters; `pnpm build` + offline preview; desktop and 390x844 checks; original platform links to `/panel/` without code or backend coupling. |
+
 ### P2 Agent Generation Quality
 
 These improve the LLM side without letting it control numerical claims.
@@ -115,6 +123,8 @@ Keep this table short and current. One row can cover a grouped workstream when t
 
 | Issues | Workstream | Priority | Status | Owner | Claimed at | Expires at | Notes |
 |---|---|---:|---|---|---|---|---|
+| #42, #43, #44, #45 | Intake ticket referencing, full history list, needs-review flag, and list filters | P1 | done | Claude current task | 2026-07-23 10:40 +0800 | 2026-07-23 11:40 +0800 | Replaced the unused `related_packet` field with `related_issues` (free-text parse, max 5, written as GitHub cross-references; deliberately no in-site reply hierarchy); fixed the hardcoded `per_page=20` that hid every ticket before #13 and switched receipt lookup to one repo-level comments query; added the `needs_review` flag (`待审核` label + body statement, either one counts); added state/type/submitter filters plus 只看待审核 / 收起回复 toggles and an 8-item preview with 展开全部. Verified: `pytest tests/test_intake_service.py -q` (14 passed); `python platform/build.py`; real-repo `list_issues()` returns all 32 tickets in 2.8s with receipts resolved; browser checks of every filter, the cite toggle, and both themes against real ticket data. Not yet deployed — needs `systemctl restart alpha-intake` plus the static upload. |
+| user-directed | Event announcement -> market reaction research panel | P1 | done | Codex current task | 2026-07-23 01:48 +0800 | 2026-07-23 02:48 +0800 | Completed independent static `panel/`, build-time adjusted JSON export, P0/P1/P2 views, offline Agent presets, optional browser-direct model configuration, and the independent `/panel/` platform entry. Verified: `python platform/build.py`; `pnpm type-check`; `pnpm lint`; `pnpm build`; `pytest -q tests/test_panel_export.py tests/test_intake_service.py` (19 passed); `pytest -q` (78 passed). Browser checks passed at desktop and 390x844 with no horizontal overflow, no console errors, local-only panel resources, and all three offline presets working. A local OpenAI-compatible mock also verified free-input factor and portfolio actions; clearing model configuration disabled free input while preserving offline presets. |
 | #7, #15 | PIT field availability and look-ahead proof | P0 | done | Codex current task | 2026-07-22 16:08 +0800 | 2026-07-22 17:08 +0800 | Implemented deterministic field availability metadata, validate/backtest enforcement, PIT-safe mktcap provenance, docs/paper limitations, and tests. Verified: `pytest tests/test_align.py tests/test_backtest.py tests/test_agents.py tests/test_factors.py -q`; `pytest -q`. |
 | #10 | Expression engine whitelist and complexity limits | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic expression safety checks and focused tests. Closed upstream with completion note on 2026-07-22. |
 | #8 | Synthetic-vs-real report labeling | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added visible `data_mode`/source metadata in reports and tests. Closed upstream with completion note on 2026-07-22. |

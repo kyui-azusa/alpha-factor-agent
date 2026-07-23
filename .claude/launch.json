@@ -4,8 +4,9 @@
     {
       "name": "platform-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8799", "--directory", "platform/dist"],
-      "port": 8799
+      "runtimeArgs": ["-m", "http.server", "--directory", "platform/dist"],
+      "port": 8799,
+      "autoPort": true
     }
   ]
 }

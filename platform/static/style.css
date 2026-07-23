@@ -215,6 +215,142 @@ header.site nav a:hover { color: var(--ink); }
 }
 .lede { color: var(--muted); font-size: 16px; margin: 0 0 20px; max-width: 46ch; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- 首屏视频 ----------
+   宽屏时首屏排成两栏(文案左 / 影片右),并向右探出版心 ——
+   竖排会把影片推到折线以下,那就不叫"首屏视频"了。 */
+.hero.has-film { padding-bottom: 22px; }
+@media (min-width: 1000px) {
+  .hero.has-film {
+    display: grid; align-items: center; gap: 40px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr);
+    margin-right: calc(-1 * max(0px, (min(1160px, 100vw - 48px) - 100%) / 2));
+  }
+  .hero.has-film .lede { margin-bottom: 22px; }
+}
+
+.film { margin: 26px 0 0; }
+@media (min-width: 1000px) { .film { margin: 0; } }
+.film-stage {
+  position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
+  padding: 0; overflow: hidden; cursor: pointer;
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+  /* 尺度大的表面要读起来更"厚":光晕比普通卡片重一档 */
+  transition: transform .42s cubic-bezier(.22,1,.36,1), box-shadow .42s, border-color .42s;
+}
+.film-stage:hover, .film-stage:focus-visible {
+  transform: translateY(-3px); border-color: var(--t1-bd-hi);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--t1-bd), 0 24px 70px -34px var(--t1-bd-hi);
+}
+.film-stage:focus-visible { outline: none; }
+.film-stage:active { transform: translateY(-1px) scale(.995); }
+.film-poster, .film-loop {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+/* 预告叠在海报之上淡入 —— 海报与视频首帧不必是同一张,也不会闪 */
+.film-loop { opacity: 0; transition: opacity .6s ease; }
+.film-loop.is-on { opacity: 1; }
+/* 底部压暗,文字才压得住画面(画面本身是深色,但节拍之间会变亮) */
+.film-scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to top, rgba(4, 5, 12, .92) 0%, rgba(4, 5, 12, .55) 26%, rgba(4, 5, 12, .06) 52%, transparent 72%);
+}
+.film-play {
+  position: absolute; top: 50%; left: 50%; width: 62px; height: 62px;
+  transform: translate(-50%, -50%); display: grid; place-items: center;
+  border-radius: 50%; background: rgba(255, 255, 255, .13);
+  border: 1px solid rgba(255, 255, 255, .38);
+  backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
+  transition: transform .42s cubic-bezier(.22,1,.36,1), background .3s;
+}
+.film-play svg { width: 27px; height: 27px; fill: #fff; margin-left: 3px; }
+.film-stage:hover .film-play, .film-stage:focus-visible .film-play {
+  transform: translate(-50%, -50%) scale(1.09); background: rgba(255, 255, 255, .2);
+}
+.film-meta {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end; gap: 4px 12px; padding: 16px 18px; text-align: left;
+}
+.film-meta em {
+  grid-column: 1 / -1; font-style: normal; font-family: var(--mono);
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #9fd8e6;
+}
+.film-meta strong { color: #fff; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.film-dur { font-family: var(--mono); font-size: 12px; color: rgba(255, 255, 255, .72); }
+.film figcaption { margin: 12px 2px 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+.film-note { display: block; margin-top: 5px; color: var(--faint); font-size: 12px; }
+
+/* 灯箱:看 6 分钟的片子是"专注任务",配压暗遮罩把背景推远(而非并排浏览) */
+.film-box { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px; }
+.film-box[hidden] { display: none; }
+.film-box-scrim {
+  position: absolute; inset: 0; background: rgba(3, 4, 10, .78);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity .3s ease;
+}
+.film-box.is-open .film-box-scrim { opacity: 1; }
+.film-box-inner {
+  position: relative; width: min(1120px, 100%);
+  /* 从卡片的位置放大出来:开合走同一条路径,空间关系才连得上 */
+  transform: scale(.94); opacity: 0;
+  transition: transform .42s cubic-bezier(.22,1,.36,1), opacity .3s ease;
+}
+.film-box.is-open .film-box-inner { transform: none; opacity: 1; }
+.film-full {
+  display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px;
+  background: #000; box-shadow: var(--shadow-panel);
+}
+.film-box-close {
+  position: absolute; top: -44px; right: -4px; width: 34px; height: 34px; line-height: 1;
+  color: #fff; font-size: 21px; cursor: pointer;
+  background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 10px;
+}
+.film-box-close:hover { background: rgba(255, 255, 255, .22); }
+@media (max-width: 560px) {
+  .film-box { padding: 14px; }
+  .film-box-close { top: -40px; right: 0; }
+  .film-play { width: 52px; height: 52px; }
+  .film-play svg { width: 23px; height: 23px; }
+}
+
+/* ---------- 首屏入场 ----------
+   逐级揭幕:眉标 → 标题 → 导语 → 标签 → 影片,每级差 70ms。
+   曲线是临界阻尼的近似(不回弹)—— 没有手势带动的入场加回弹会显得轻浮。 */
+.hero .r-1, .hero .r-2, .hero .r-3, .hero .r-4 {
+  opacity: 0; transform: translateY(14px);
+  animation: rise .62s cubic-bezier(.22,1,.36,1) forwards;
+}
+.hero .r-1 { animation-delay: .05s; }
+.hero .r-2 { animation-delay: .12s; }
+.hero .r-3 { animation-delay: .19s; }
+.hero .r-4 { animation-delay: .26s; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+/* 影片不是"淡进来",是"显影":模糊与缩放一起收,读起来像一块真的材质到位了 */
+.hero .r-5 {
+  opacity: 0; transform: translateY(20px) scale(.965); filter: blur(14px);
+  animation: materialize .85s cubic-bezier(.22,1,.36,1) .3s forwards;
+}
+@keyframes materialize {
+  60% { filter: blur(0); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+/* 影片就位时背景极光跟着亮一下,像灯光打上来 */
+.aurora { animation: drift 22s ease-in-out infinite alternate, bloom 1.5s ease-out .3s both; }
+@keyframes bloom { from { opacity: .35; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* 减弱动效:只留淡入,不要位移/模糊/缩放,循环预告也不自动播 */
+  .hero .r-1, .hero .r-2, .hero .r-3, .hero .r-4, .hero .r-5 {
+    animation: fadein .3s ease forwards; transform: none; filter: none;
+  }
+  @keyframes fadein { to { opacity: 1; } }
+  .film-stage, .film-play, .film-box-inner { transition: none; }
+  .aurora { animation: none; }
+}
 .chip {
   font-family: var(--mono); font-size: 12.5px; color: var(--ink);
   padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
@@ -327,6 +463,45 @@ header.site nav a:hover { color: var(--ink); }
 }
 .field textarea { resize: vertical; }
 .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) center, calc(100% - 13px) center; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+/* 「需要他人审核」:未经证实的内容自己举手,比事后追责便宜 */
+.check {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px;
+  padding: 12px 14px; background: var(--well); border: 1px solid var(--line); border-radius: 12px;
+  cursor: pointer; transition: border-color .2s, box-shadow .2s;
+}
+.check:hover { border-color: var(--t1-bd); }
+.check:has(input:checked) { border-color: var(--t1-bd-hi); box-shadow: 0 0 0 3px var(--t1-ring); }
+.check input { width: 17px; height: 17px; margin: 3px 0 0; accent-color: var(--a1); cursor: pointer; }
+.check strong { display: block; color: var(--ink); font-size: 14px; }
+.check em { display: block; color: var(--faint); font-size: 12px; font-style: normal; line-height: 1.5; }
+
+/* 筛选条:工单攒到几十条之后,没有它就只能靠肉眼扫 */
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.filters[hidden] { display: none; }
+.filters select {
+  font: inherit; font-size: 12.5px; color: var(--ink); background: var(--well);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 28px 5px 12px; cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) center, calc(100% - 11px) center;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.filters select:focus { outline: none; border-color: var(--t1-bd-hi); box-shadow: 0 0 0 3px var(--t1-ring); }
+.toggle {
+  display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px;
+  padding: 5px 12px 5px 10px; background: var(--well); border: 1px solid var(--line);
+  border-radius: 999px; cursor: pointer; transition: color .2s, border-color .2s;
+}
+.toggle:has(input:checked) { color: var(--a1); border-color: var(--t1-bd-hi); }
+.toggle input { width: 14px; height: 14px; margin: 0; accent-color: var(--a1); cursor: pointer; }
+.link-btn {
+  font: inherit; font-size: 12.5px; color: var(--muted); background: none; border: 0;
+  padding: 5px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.link-btn:hover { color: var(--ink); }
+.link-btn[hidden] { display: none; }
+.issue-list.replies-off .reply { display: none; }
+
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .submit-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
 .btn-primary {
@@ -363,6 +538,9 @@ header.site nav a:hover { color: var(--ink); }
 .issue-tags:empty { display: none; }
 .mini-label { color: var(--a2); background: var(--t2-bg); border: 1px solid var(--t2-bd); border-radius: 999px; padding: 1px 7px; font-size: 11px; }
 .mini-label.milestone { color: var(--ok-2); background: var(--tok-bg); border-color: var(--tok-bd); }
+/* 待审核:换成紫色,和青色的类型标签一眼分得开 */
+.mini-label.review { color: var(--a1); background: var(--t1-bg); border-color: var(--t1-bd); }
+.issue-item.needs-review { border-color: var(--t1-bd); }
 
 /* 答复块:回复是这块最有价值的内容,不该被压成一行截断 */
 .reply {
@@ -384,6 +562,16 @@ header.site nav a:hover { color: var(--ink); }
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 .reply time { display: block; margin-top: 4px; color: var(--faint); font-family: var(--mono); font-size: 11px; }
+/* 折叠:工单攒到几十条,先露最近几条,其余按需展开(靠 [hidden],要压过 display:grid) */
+.issue-item[hidden] { display: none; }
+.more-btn {
+  display: block; margin: 10px auto 0; font: inherit; font-size: 13px; color: var(--muted);
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 16px; cursor: pointer; transition: color .2s, border-color .2s, box-shadow .2s;
+}
+.more-btn:hover { color: var(--ink); border-color: var(--t1-bd); box-shadow: 0 0 0 3px var(--t1-ring); }
+.more-btn[hidden] { display: none; }
+
 /* 引用:让新工单能指着老工单说话 —— 一枚按钮把号码塞进表单,不引入站内回复层级 */
 .cite-btn {
   margin-top: 4px; font: inherit; font-size: 11.5px; color: var(--a2);
