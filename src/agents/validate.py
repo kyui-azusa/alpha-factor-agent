@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import ast
+import json
 
 import pandas as pd
 
@@ -12,6 +12,10 @@ from src.utils.field_availability import validate_field_availability
 
 
 FORBIDDEN_FIELDS = {"fwd_ret", "fwd_ret_1", "fwd_ret_5", "fwd_ret_20", "future_return", "label"}
+
+
+def is_forbidden_field(field: str) -> bool:
+    return field in FORBIDDEN_FIELDS or field.startswith("fwd_ret_")
 
 
 def _numeric_arg(node: ast.AST) -> float | None:
@@ -148,7 +152,7 @@ def validate(
     missing = (used_names | declared) - allowed_fields
     if missing:
         return False, f"unknown fields: {sorted(missing)}"
-    forbidden = (used_names | declared) & FORBIDDEN_FIELDS
+    forbidden = {field for field in used_names | declared if is_forbidden_field(field)}
     if forbidden:
         return False, f"future/label fields are forbidden in factor expressions: {sorted(forbidden)}"
     lowered = expr.expression.lower()

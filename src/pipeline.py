@@ -12,6 +12,7 @@ from src.backtest.runner import backtest
 from src.config import CONFIG, Config
 from src.factors.baseline import BASELINE_FACTORS
 from src.report_factors import export_summary
+from src.research.preflight import ExecutionPermit, validate_execution_permit
 from src.utils.data_loader import build_panel, get_forward_returns, load_prices
 
 
@@ -35,11 +36,23 @@ def run_project(
     rounds: int = 1,
     per_round: int = 2,
     n_quantiles: int = 5,
-    include_agent: bool = True,
+    include_agent: bool = False,
+    execution_permit: ExecutionPermit | None = None,
 ) -> dict:
+    if include_agent:
+        execution_permit = validate_execution_permit(execution_permit)
     cfg.ensure_dirs()
     baseline_summary = run_baselines(cfg, n_quantiles=n_quantiles)
-    agent_results = run_loop(rounds=rounds, per_round=per_round, cfg=cfg) if include_agent else []
+    agent_results = (
+        run_loop(
+            rounds=rounds,
+            per_round=per_round,
+            cfg=cfg,
+            execution_permit=execution_permit,
+        )
+        if include_agent
+        else []
+    )
     factor_summary, factor_summary_path = export_summary(cfg=cfg)
     manifest = {
         "baseline_count": int(len(baseline_summary)),
@@ -59,14 +72,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--rounds", type=int, default=1, help="Agent loop rounds.")
     parser.add_argument("--per-round", type=int, default=2, help="Candidate factors per round.")
     parser.add_argument("--n-quantiles", type=int, default=5, help="Backtest quantile bucket count.")
-    parser.add_argument("--skip-agent", action="store_true", help="Run deterministic baselines only.")
     args = parser.parse_args(argv)
     manifest = run_project(
         CONFIG,
         rounds=args.rounds,
         per_round=args.per_round,
         n_quantiles=args.n_quantiles,
-        include_agent=not args.skip_agent,
+        include_agent=False,
     )
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
 

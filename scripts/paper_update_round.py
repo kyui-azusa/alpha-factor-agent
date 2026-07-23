@@ -222,7 +222,7 @@ def _markdown_status(raw_status: dict[str, dict], mssql: dict[str, object], base
 
 def generate_update_outputs(cfg: Config = CONFIG, output_dir: Path | None = None, run_pipeline: bool = False) -> dict[str, str]:
     if run_pipeline:
-        run_project(cfg=cfg, rounds=1, per_round=2, include_agent=True)
+        run_project(cfg=cfg, rounds=1, per_round=2, include_agent=False)
 
     out = output_dir or (cfg.results_dir / "paper_update" / "latest")
     out.mkdir(parents=True, exist_ok=True)
