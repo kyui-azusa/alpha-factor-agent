@@ -1,6 +1,7 @@
 from dataclasses import replace
 import json
 
+import pandas as pd
 import pytest
 
 from src.research.contract import ResearchRequest, confirm_request
@@ -13,6 +14,7 @@ from src.research.preflight import (
     validate_execution_permit,
 )
 from src.utils.field_availability import price_field_metadata
+from src.utils.fundamental_quality import FieldQualityPolicy, audit_fundamental_quality
 
 
 def request(**overrides) -> ResearchRequest:
@@ -175,6 +177,47 @@ def test_missing_capability_audit_is_unverified_and_blocking():
     coverage = next(rule for rule in report.rules if rule.rule_id == "PF-013")
     assert coverage.status == "unverified"
     assert coverage.blocking
+    assert not report.allows_generation
+
+
+def test_fundamental_quality_audit_drives_coverage_and_freshness_rules():
+    observations = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2022-01-10", "2022-01-10"]),
+            "code": ["STALE", "MISSING"],
+        }
+    )
+    fundamentals = pd.DataFrame(
+        {
+            "code": ["STALE"],
+            "report_period": pd.to_datetime(["2019-09-30"]),
+            "ann_date": pd.to_datetime(["2020-01-01"]),
+            "ann_time": pd.to_datetime(["2020-01-01 18:00:00"]),
+            "net_income": [10.0],
+        }
+    )
+    audit = audit_fundamental_quality(
+        observations,
+        fundamentals,
+        {
+            "net_income": FieldQualityPolicy(
+                max_age_days=365,
+                min_coverage_ratio=0.8,
+                max_stale_ratio=0.0,
+            )
+        },
+        signal_time="15:00:00",
+        availability_time_col="ann_time",
+    )
+
+    report = run_preflight(confirmed_request(), evidence(**audit.preflight_evidence()))
+    coverage = next(rule for rule in report.rules if rule.rule_id == "PF-013")
+    freshness = next(rule for rule in report.rules if rule.rule_id == "PF-014")
+
+    assert coverage.status == "blocked"
+    assert freshness.status == "blocked"
+    assert audit.audit_id in coverage.evidence_source
+    assert audit.audit_id in freshness.evidence_source
     assert not report.allows_generation
 
 
