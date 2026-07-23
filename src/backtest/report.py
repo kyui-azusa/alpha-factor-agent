@@ -196,6 +196,8 @@ def to_report(result: dict, path: str | Path | None = None) -> Path:
         "walk_forward": result.get("walk_forward", {}),
         "tradability": result.get("tradability", {}),
         "robustness": result.get("robustness", {}),
+        "feedback_audit": result.get("feedback_audit", {}),
+        "oos_evidence": result.get("oos_evidence", {}),
         "evaluation_layers": _evaluation_layers(result),
         "rank_ic": _series_records(result["rank_ic"]),
         "quantile_returns": _frame_records(result["quantile_returns"]),
@@ -237,6 +239,9 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
     walk_forward = result.get("walk_forward", {})
     tradability = result.get("tradability", {})
     robustness = result.get("robustness", {})
+    feedback_audit = result.get("feedback_audit", {})
+    oos_evidence = result.get("oos_evidence", {})
+    oos_payload = oos_evidence.get("payload", {}) if isinstance(oos_evidence, dict) else {}
     tradable_summary = tradability.get("tradable_summary", {}) if isinstance(tradability, dict) else {}
     layers = _evaluation_layers(result)
     factor_validity = layers["factor_validity"]
@@ -336,6 +341,17 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
         f"- Dropped observations: `{tradability.get('dropped_observations', 'n/a') if isinstance(tradability, dict) else 'n/a'}`",
         f"- Ideal net long-short mean: `{_format_metric(tradability.get('ideal_net_long_short_mean') if isinstance(tradability, dict) else None)}`",
         f"- Tradable net long-short mean: `{_format_metric(tradable_summary.get('net_long_short_mean'))}`",
+        "",
+        "## Feedback Boundary",
+        "",
+        f"- OOS status: `{oos_payload.get('status', 'n/a')}`",
+        f"- OOS failure reasons: `{', '.join(oos_payload.get('failure_reasons', [])) or 'none'}`",
+        f"- OOS risk warnings: `{', '.join(oos_payload.get('risk_warnings', [])) or 'none'}`",
+        f"- Backtest results touched: `{feedback_audit.get('backtest_results_touched', False)}`",
+        f"- OOS values exposed to generation: `{feedback_audit.get('oos_values_exposed_to_generation', False)}`",
+        f"- Next generation allowed from OOS: `{feedback_audit.get('next_generation_allowed_from_oos', False)}`",
+        f"- Clean OOS test: `{feedback_audit.get('clean_oos_test', False)}`",
+        f"- Allowed next action: `{oos_payload.get('allowed_next_action', 'n/a')}`",
         "",
     ]
     (report_dir / "factor_card.md").write_text("\n".join(lines), encoding="utf-8")
