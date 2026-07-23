@@ -19,10 +19,10 @@
 ## Milestone 0 — 配置与数据契约
 
 **建文件**
-- `src/config.py`:全局配置(dataclass 或 pydantic)。字段:`freq`, `universe`, `start_date`, `end_date`, `train_end`, `cost_bps`(单边成本,bps), `data_dir`, `results_dir`。
+- `src/config.py`:全局配置(dataclass 或 pydantic)。字段:`freq`, `universe`, `start_date`, `end_date`, `train_end`, `signal_time`, `fundamental_availability_time_col`, `cost_bps`(单边成本,bps), `data_dir`, `results_dir`。
 - `docs/DATA_SCHEMA.md`:定义输入数据表结构(先写契约,数据后填)。至少三张表:
   - `prices`: `date, code, open, high, low, close, vol, amount, adj_factor`
-  - `fundamentals`: `code, report_period, ann_date, <财务字段...>`(**ann_date = 公告日,用于时间对齐**)
+  - `fundamentals`: `code, report_period, ann_date, ann_time?, <财务字段...>`(`ann_time` 仅接受经来源认证的精确发布时间)
   - `universe`: `date, code`(历史成分股,防幸存者偏差)
 
 **验收**:`from src.config import CONFIG` 可导入;`DATA_SCHEMA.md` 明确每列含义和 dtype。
@@ -38,11 +38,11 @@
   - `load_universe() -> pd.DataFrame`
   - `get_forward_returns(prices, periods=(1,5,20)) -> pd.DataFrame`  # 未来收益,MultiIndex[date,code]
 - `src/utils/align.py`
-  - `pit_merge(prices, fundamentals) -> pd.DataFrame`  # point-in-time 合并:每个 (date,code) 只用 ann_date≤date 的最新财报
+  - `pit_merge(prices, fundamentals, *, signal_time, availability_time_col) -> pd.DataFrame`  # point-in-time 合并:每个 (date,code) 只用 signal_time 前已可用的最新财报;缺发布时间保守延至下一交易日
   - `winsorize(s, lower=0.01, upper=0.99)`,`zscore(s)`,`neutralize(factor, industry, mktcap)`  # 去极值/标准化/行业市值中性化
 
 **验收**
-- `tests/test_align.py`:构造一条 ann_date 晚于 date 的记录,断言 `pit_merge` **不会**把它并进来(防 look-ahead 的核心测试)。
+- `tests/test_align.py`:覆盖交易日盘前/盘中/盘后、非交易日与缺少精确发布时间,断言 `pit_merge` **不会**把发布时间晚于 signal_time 的记录并进来,且缺时间记录下一交易日才可用(防 look-ahead 的核心测试)。
 - 能对样例数据产出干净的 `data/processed/panel.parquet`。
 
 ---

@@ -15,6 +15,8 @@ class Config:
     start_date: str = "2015-01-01"
     end_date: str = "2021-12-31"
     train_end: str = "2019-12-31"
+    signal_time: str = "15:00:00"
+    fundamental_availability_time_col: str | None = None
     cost_bps: float = 10.0
     data_dir: Path = PROJECT_ROOT / "data"
     results_dir: Path = PROJECT_ROOT / "results"
