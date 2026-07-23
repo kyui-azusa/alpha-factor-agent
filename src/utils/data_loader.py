@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.config import CONFIG, Config
+from src.factors.regime import REGIME_FIELDS, market_regime_by_date
 from src.utils.align import pit_merge
 from src.utils.field_availability import attach_field_availability, derived_field_metadata, get_field_availability, set_field_metadata
 from src.utils.synthetic import make_synthetic_data
@@ -77,10 +78,46 @@ def build_panel(cfg: Config = CONFIG, save: bool = True) -> pd.DataFrame:
     metadata = get_field_availability(panel)
     panel = panel.set_index(["date", "code"]).sort_index()
     panel = attach_field_availability(panel, metadata)
+    panel = attach_market_regimes(panel)
     if save:
         path = cfg.processed_dir / "panel.parquet"
         _safe_to_parquet(panel, path)
     return panel
+
+
+def attach_market_regimes(panel: pd.DataFrame) -> pd.DataFrame:
+    regime = market_regime_by_date(panel)
+    dates = panel.index.get_level_values("date")
+    out = panel.copy()
+    for field in REGIME_FIELDS:
+        out[field] = pd.Series(dates.map(regime[field]), index=panel.index, dtype=float)
+
+    metadata = get_field_availability(panel)
+    metadata.update(
+        {
+            "market_return_20d_lagged": derived_field_metadata(
+                "market_return_20d_lagged",
+                ["close"],
+                "equal-weight market daily returns summed over 20 observations and shifted one trading date",
+            ),
+            "market_volatility_20d_lagged": derived_field_metadata(
+                "market_volatility_20d_lagged",
+                ["close"],
+                "20-observation realized volatility of equal-weight market returns shifted one trading date",
+            ),
+            "regime_bull": derived_field_metadata(
+                "regime_bull",
+                ["market_return_20d_lagged"],
+                "binary state: lagged 20-observation market return is positive",
+            ),
+            "regime_high_vol": derived_field_metadata(
+                "regime_high_vol",
+                ["market_volatility_20d_lagged"],
+                "binary state: lagged 20-observation market volatility exceeds its trailing baseline",
+            ),
+        }
+    )
+    return attach_field_availability(out, metadata)
 
 
 def _fill_pit_safe_mktcap(panel: pd.DataFrame) -> pd.DataFrame:

@@ -1,6 +1,6 @@
 # Local Development Plan
 
-Updated: 2026-07-22 23:16 +0800
+Updated: 2026-07-23 01:43 +0800
 
 This file is the local planning board for turning feedback issues into implementation work. GitHub Issues remain the raw intake source; this document is the working summary used before starting code changes, so different Codex runs or teammates do not accidentally fix the same ticket twice.
 
@@ -83,6 +83,7 @@ These make the numerical results more defensible once correctness is intact.
 | #11 | Walk-forward OOS evaluation | Reduces dependence on one train/test split and supports robustness discussion. | Extend backtest runner/report with rolling or expanding windows, then summarize pass rate and worst window. |
 | #12 | Trading feasibility constraints | A-share stop/limit/liquidity constraints can make paper returns unrealizable. | Add optional constraints to portfolio construction/reporting; keep ideal and feasible results side by side. |
 | #20 | Re-skin factor detection and promotion policy | Avoids promoting near-duplicate factors that pass IC by minor variation. | Extend novelty checks beyond strict correlation and document promotion rules. |
+| #32 | Detailed A-share execution costs | A single turnover fee cannot represent sell-side tax, slippage, market impact, and borrow costs. | Produce a reconciled daily component ledger and integrate it with feasible target weights from #12. |
 
 ### P2 Agent Generation Quality
 
@@ -93,6 +94,7 @@ These improve the LLM side without letting it control numerical claims.
 | #14, #16, #19 | A-share knowledge base and factor hypothesis cards | Prevents black-box formula generation and separates broad hypotheses from directly backtestable factors. | Define a lightweight hypothesis card schema and field/source references before changing prompts. |
 | #18 | Missing-value handling handbook | Keeps LLM proposals aware of dirty data through deterministic rules rather than ad hoc fills. | Add a field policy document or schema extension for null, negative PE, stale fundamentals, and cross-section eligibility. |
 | #6 | Market-state/regime discussion | Useful, but likely belongs in limitations or future work unless implemented carefully. | Decide whether to document as limitation or add a bounded regime tag that does not leak test outcomes. |
+| #24 | Temperature validity/novelty sweep | Makes the generation randomness trade-off measurable instead of anecdotal. | Sweep a fixed grid and persist validity, novelty, uniqueness, and Pareto-frontier results. |
 
 ### P2 Factor Ideas And Explainability
 
@@ -109,6 +111,24 @@ These are useful candidates or reporting polish after the pipeline is stable.
 |---|---|---|---|
 | #5 | Intake test tickets | These confirm the issue system works and do not need product work. #2 was closed as validation-only on 2026-07-22. | Close or mark as validation-only after confirming no attached bug remains. |
 
+## M7 Direction: One Falsifiable Increment Experiment
+
+The next phase stops expanding generic alpha-agent capabilities. It executes one frozen research question end to end: whether performance-forecast announcement text adds predictive value beyond the structured forecast fields on the same point-in-time, out-of-sample events.
+
+| Order | Issue | Concrete implementation | Intended effect | Test gate |
+|---:|---|---|---|---|
+| 1 | #35 | Export and normalize the 2015-2021 `LC_PerformanceForecast` event table with stable IDs and next-trading-day availability. | Establish one PIT event fact table shared by every later stage. | Duplicate, holiday, future-event, report-period, negative-base, stable-ID, and schema-failure fixtures. |
+| 2a | #36 | Freeze a walk-forward structured-only feature/model pipeline with per-window transforms and manifests. | Create the one allowed control group without text leakage or OOS refitting. | Chronological split, train-only fit, text-column rejection, unknown category, missing semantics, and replay determinism. |
+| 2b | #37 | Convert announcement text to versioned semantic fields through an offline, hash-keyed LLM cache. | Turn nondeterministic text reading into a frozen data-production step outside backtesting. | Cache key/version changes, strict schema, bounded retry, offline miss failure, replay, redaction, and no-LLM architecture boundary. |
+| 3 | #38 | Compare structured-only with structured-plus-text on exactly matched event/date/universe/config keys. | Make text increment directly falsifiable instead of reporting a standalone text factor. | Key/config mismatch rejection, zero-text zero delta, injected-signal recovery, chronological OOS, and offline execution. |
+| 4a | #39 | Run Newey-West inference on the paired daily Rank IC delta series with horizon-derived lag. | Prevent overlapping returns from creating false precision. | Hand-calculated HAC, AR(1), zero/positive delta, lag boundary, NaN alignment, short sample, and direct-difference checks. |
+| 4b | #40 | Report coverage funnels, PIT neutralization, exchange/board/year/type/industry/size slices, and disclosure bias. | Distinguish genuine text increment from selection, industry, size, or exchange concentration. | Funnel conservation, mutually exclusive loss reasons, date isolation, future-industry invariance, neutral exposure, and insufficient-slice states. |
+| 5 | #41 | Freeze hashes/configs in an experiment manifest and replay all deterministic artifacts offline into positive, negative, or inconclusive reports. | Make the final claim auditable and allow a valid negative result without moving the goalposts. | Manifest completeness, byte-stable replay, tamper failure, no API key/network, conclusion semantics, and sensitive-output scan. |
+
+Dependency graph: `#35 -> (#36, #37) -> #38 -> (#39, #40) -> #41`. #36 and #37 may run in parallel; #39 and #40 may run in parallel. The primary estimand, matched sample, neutralization, horizons, execution constraints, and costs are frozen before observing the treatment result.
+
+Final verification for the completed credibility batch: `pytest tests/test_costs.py -q` (`7 passed`), `pytest tests/test_backtest.py -q` (`9 passed`), and `pytest -q` (`90 passed in 210.72s`). `git diff --check` and `python -m json.tool knowledge/a_share/v1.json` also passed.
+
 ## Claim Ledger
 
 Keep this table short and current. One row can cover a grouped workstream when the implementation naturally closes multiple issues.
@@ -119,11 +139,14 @@ Keep this table short and current. One row can cover a grouped workstream when t
 | #10 | Expression engine whitelist and complexity limits | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic expression safety checks and focused tests. Closed upstream with completion note on 2026-07-22. |
 | #8 | Synthetic-vs-real report labeling | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added visible `data_mode`/source metadata in reports and tests. Closed upstream with completion note on 2026-07-22. |
 | #11 | Walk-forward OOS evaluation | P1 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added chronological walk-forward output and report summary. Closed upstream with completion note on 2026-07-22. |
-| #12 | Trading feasibility constraints | P1 | open |  |  |  |  |
-| #20 | Re-skin factor detection and promotion policy | P1 | open |  |  |  |  |
-| #14, #16, #19 | Knowledge base and hypothesis card generation | P2 | open |  |  |  | #14 and #16 closed for hypothesis-card/landing-chain scope. #19 remains open for a fuller A-share knowledge base. |
+| #12 | Trading feasibility constraints | P1 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Commit `35e55b3`: order-level suspended/limit-direction checks, shifted ADV capacity, participation caps, partial fills, and ideal/tradable/executable results. Integrated with detailed costs in `45b1d98`. Verified: `pytest tests/test_backtest.py -q` (`9 passed`). |
+| #30 | Layered robustness evaluation | P1 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Commit `35e55b3`: market regime, industry, size, liquidity/universe, rebalance frequency, forward horizon, cost grid, and explicit robustness labels. Verified: `pytest tests/test_backtest.py -q` (`9 passed`). |
+| #20 | Re-skin factor detection and promotion policy | P1 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added deterministic expression fingerprints, candidate/library and candidate/candidate signal checks, rolling convergence, post-backtest Rank IC/return-path similarity, explicit promotion decisions, and reversible demotion. Verified: `pytest tests/test_novelty.py tests/test_temperature.py tests/test_agents.py -q`; `pytest -q`. |
+| #32 | Detailed A-share execution costs | P1 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Commits `001fdf1` and `45b1d98`: signed turnover, commission, date-aware sell-only stamp duty, slippage, nonlinear participation impact, short-borrow accrual, turnover-weighted coverage, and a reconciled ledger applied to #12 feasible holdings. Corrected the issue's unit error: `1 per mille = 10 bps`, not 100 bps. Verified: `pytest tests/test_costs.py -q` (`7 passed`) and `pytest tests/test_backtest.py -q` (`9 passed`). |
+| #14, #16, #19 | Knowledge base and hypothesis card generation | P2 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added a versioned, source-traceable A-share knowledge catalog, runtime field intersection, citation requirements, and fail-closed validation for unregistered backtest fields. |
 | #18 | Missing-value handling handbook | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic field missing policy/generation context coverage. Closed upstream with completion note on 2026-07-22. |
-| #6 | Market-state/regime handling | P2 | open |  |  |  |  |
+| #6 | Market-state/regime handling | P2 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added deterministic T-1 market regimes and a bounded `where(regime_*, on_true, on_false)` operator; future-invariance, branch, metadata, and AST-safety tests cover the boundary. |
+| #24 | Temperature validity/novelty sweep | P2 | done | Codex remaining-ticket task | 2026-07-23 | 2026-07-23 | Added a deterministic sweep runner with requested/proposed/parse-failure counts, rule validity, strict novelty, warning acceptance, uniqueness, Pareto flags, and JSON/CSV artifacts. Verified: `pytest tests/test_temperature.py -q`; `pytest -q`. |
 | #9 | Standard factor explanation cards | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added factor card output in backtest reports. Closed upstream with completion note on 2026-07-22. |
 | #13, #17 | Candidate factor ideas | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Registered cash-flow yield and delevered ROE as explainable seed/candidate factors. Closed upstream with completion note on 2026-07-22. |
 | #5 | Intake validation tickets | P3 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | #2 and #5 closed as validation-only on 2026-07-22; no product code change required. |

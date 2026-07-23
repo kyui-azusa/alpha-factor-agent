@@ -6,6 +6,7 @@ from pathlib import Path
 from src.agents.feedback import refine
 from src.agents.generate import propose_factors
 from src.agents.knowledge import generation_context
+from src.agents.novelty import batch_novelty_review, promotion_decision
 from src.agents.validate import validate
 from src.backtest.report import to_report
 from src.backtest.runner import backtest
@@ -44,10 +45,16 @@ def run_loop(
     field_dict = _field_dict(panel)
     gen_context = generation_context(panel)
     accepted: list[FactorExpr] = list(BASELINE_FACTORS)
+    accepted_results: list[dict] = []
     results: list[dict] = []
 
     for round_id in range(1, rounds + 1):
         candidates = propose_factors([factor.to_dict() for factor in accepted], gen_context, n=per_round, client=client)
+        candidates, batch_decisions = batch_novelty_review(candidates, accepted, panel)
+        rejected_names = {item["candidate"] for item in batch_decisions if item["decision"] == "reject"}
+        for decision in batch_decisions:
+            if decision["candidate"] in rejected_names:
+                results.append({"round": round_id, "attempt": 0, "batch_novelty_rejected": decision})
         for expr in candidates:
             current = expr
             parent: str | None = None
@@ -59,9 +66,28 @@ def run_loop(
                     )
                     break
                 result = backtest(current, panel, fwd_ret, cfg=cfg)
+                promotion = promotion_decision(
+                    result,
+                    current.metadata.get("validation", {}).get("batch_novelty", {}),
+                    accepted_results,
+                )
+                if promotion["action"] != "promote":
+                    results.append(
+                        {
+                            "round": round_id,
+                            "attempt": attempt,
+                            "expr": current.to_dict(),
+                            "parent": parent,
+                            "rejected": "; ".join(promotion["reasons"]),
+                            "promotion": promotion,
+                        }
+                    )
+                    break
+                current.metadata.setdefault("validation", {})["promotion"] = promotion
                 to_report(result, cfg.report_dir / current.name)
                 _save_factor(current, result, cfg.factor_dir / f"{current.name}.json", parent=parent)
                 accepted.append(current)
+                accepted_results.append(result)
                 results.append(
                     {
                         "round": round_id,

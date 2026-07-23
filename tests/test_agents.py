@@ -56,6 +56,9 @@ def test_generation_context_contains_seed_catalog_and_no_raw_arrays():
     assert {item["name"] for item in context["synthesis_methods"]} >= {"complementary_blend", "risk_adjustment"}
     assert {item["field"] for item in context["field_catalog"]} >= {"close", "eps", "operating_cash_flow"}
     assert any(item["missing_policy"] for item in context["field_catalog"])
+    assert context["knowledge_version"]
+    assert context["knowledge_sources"]
+    assert context["institution_rules"]
     assert "raw_values" not in context
     assert "rows" not in context
 

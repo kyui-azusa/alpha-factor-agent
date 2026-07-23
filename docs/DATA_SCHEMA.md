@@ -58,6 +58,46 @@
 
 处理后的 `panel` 使用 `MultiIndex[date, code]`,其中 `date` 为交易日、`code` 为股票代码。行情字段来自当日市场数据;财务字段来自 `pit_merge`,保证每行只包含当日已经公告的数据。未来收益由 `get_forward_returns` 单独生成,列名为 `fwd_ret_1`, `fwd_ret_5`, `fwd_ret_20`,不得作为因子表达式可用字段。
 
+面板还可附带四个确定性市场状态字段:`market_return_20d_lagged`、
+`market_volatility_20d_lagged`、`regime_bull`、`regime_high_vol`。它们只使用截至 T-1 的
+全市场等权收益计算;T 日价格变化不得改变 T 日状态。表达式只能通过
+`where(regime_*, on_true, on_false)` 使用已登记的二元状态,不能在表达式内写比较或 Python
+条件语句。
+
+## `performance_forecasts`
+
+业绩预告事件表。一行表示一只股票针对一个报告期发布的一次有效预告。原始数据来自
+`JYDB.dbo.LC_PerformanceForecast`,去重、报告期选择和列名映射需由后续专门导出模块实现。
+
+| column | dtype | nullable | meaning |
+|---|---:|---:|---|
+| `code` | `string` | no | A 股股票代码。 |
+| `forecast_id` | `string` | no | 稳定公告/记录标识,用于去重和缓存键。 |
+| `forecast_publish_date` | `datetime64[ns]` | no | 原始 `InfoPublDate`;T 日公告从 T+1 交易日起可用。 |
+| `forecast_end_date` | `datetime64[ns]` | no | 预告对应报告期。 |
+| `forecast_type` | `string` | yes | 原始 `ForcastType` 的版本化映射。 |
+| `forecast_reason` | `string` | yes | 原始 `ForcastReason`;不能与正文语义特征重复计入对照组。 |
+| `forecast_growth_floor` | `float64` | yes | 原始 `EGrowthRateFloor`;扭亏/首亏等负基数情形保持缺失。 |
+| `forecast_growth_ceiling` | `float64` | yes | 原始 `EGrowthRateCeiling`;扭亏/首亏等负基数情形保持缺失。 |
+| `forecast_profit_floor` | `float64` | yes | 原始 `EProfitFloor`,单位必须由导出清单固定。 |
+| `forecast_profit_ceiling` | `float64` | yes | 原始 `EProfitCeiling`,单位必须由导出清单固定。 |
+| `forecast_last_profit` | `float64` | yes | 原始 `LastProfit`,不得用事后修订值回填。 |
+| `forecast_consensus_np_yoy` | `float64` | yes | 原始 `NPYOYConsistentForecast`;必须确认是事件时点快照。 |
+| `forecast_content` | `string` | yes | 原始 `ForcastContent`,只用于离线语义抽取,不直接进入回测。 |
+| `forecast_text_feature` | `float64` | yes | 按公告哈希、模型和 prompt 版本冻结的离线语义特征。 |
+
+事件可得性边界为**下一交易日**:所有结构化字段与离线文本特征都必须在
+`next_trading_date(forecast_publish_date) <= date` 时才可合并。回测只读冻结后的数值缓存,
+在断网且没有 API key 时必须可逐字节复现。
+
+## A 股知识库契约
+
+`knowledge/a_share/v1.json` 是生成阶段的版本化事实源,包含来源、字段、因子先验和制度规则。
+每个来源记录访问日期、覆盖范围、许可/使用边界;每个字段记录来源表、频率、可得时间、PIT
+规则、可回测状态和风险。运行时 `field_catalog` 只暴露“面板实际存在”与“正式知识库已登记为
+可回测”的交集。候选若声明 `backtestable_status = currently_backtestable`,必须通过
+`knowledge_citations` 引用所有字段来源;未登记字段不得因 LLM 的声明而升级为可回测。
+
 ## 字段可得性元数据
 
 `panel.attrs["field_availability"]` 是面板构建时附带的内存审计契约,用于说明每个可用于因子表达式的字段在 T 日为何可见。该元数据不替代原始数据校验,但校验层和回测层会据此 fail closed:表达式引用 PIT 敏感字段而缺少可得性证明时,应拒绝执行。
