@@ -2,7 +2,7 @@
 
 同源架构:nginx 提供静态站点并把 `/api/intake` 反代到本服务(127.0.0.1)。
 本服务处理 POST /api/intake,把一次表单提交用**项目所有者账号**建一条 GitHub Issue:
-    submitter → 正文;title → issue 标题;type/priority → labels;related/attachment/screenshot → 正文。
+    submitter → 正文;title → issue 标题;type/priority → labels;related_issues/attachment/screenshot → 正文。
 修复完成后,受保护的 POST /api/intake/receipts 可把简要回执回复到 GitHub Issue,
 并由历史工单接口同步给网站展示。
 PAT 只在服务端环境变量,绝不进入浏览器 / 静态产物。防滥用:honeypot + 每 IP 限流。
@@ -14,12 +14,15 @@ PAT 只在服务端环境变量,绝不进入浏览器 / 静态产物。防滥用
     INTAKE_ADMIN_TOKEN  回执写入接口的管理员 token(仅服务端/运维使用)
     PORT           监听端口,默认 8791(仅 127.0.0.1)
     RATE_PER_HOUR  每 IP 每小时上限,默认 12
+    ISSUE_LIMIT    历史工单条数上限,默认 100(GitHub 单页上限)
+    COMMENTS_MAX_PAGES  回执查询翻页数,默认 3(每页 100 条评论)
     INTAKE_LOG     dry-run 落盘路径,默认 /var/log/alpha-intake/dryrun.ndjson
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import time
 import urllib.error
@@ -43,6 +46,10 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 64 * 1024
 ISSUE_CACHE_SECONDS = int(os.environ.get("ISSUE_CACHE_SECONDS", "60"))
+# 历史工单默认取全量(GitHub 单页上限 100):卡在 20 条会让老工单凭空消失,也就没法被引用。
+ISSUE_LIMIT = int(os.environ.get("ISSUE_LIMIT", "100"))
+COMMENTS_PAGE_SIZE = 100
+COMMENTS_MAX_PAGES = int(os.environ.get("COMMENTS_MAX_PAGES", "3"))
 RECEIPT_MARKER = "<!-- alpha-intake-receipt -->"
 
 TYPE_LABELS = {
@@ -56,12 +63,15 @@ TYPE_LABELS = {
     "Bug": "缺陷",
 }
 VALID_PRIORITIES = {"低", "中", "高"}
+MAX_RELATED_ISSUES = 5
+# 「未经证实,请人复核」的声明。既打成标签(方便 GitHub 上筛),也写进正文(标签会被人摘掉,正文不会)。
+REVIEW_LABEL = "待审核"
 MAX = {
     "submitter": 40,
     "title": 120,
     "description": 4000,
     "attachment": 500,
-    "related_packet": 80,
+    "related_issues": 80,
     "screenshot_url": 500,
     "screenshot_name": 120,
     "issue_number": 16,
@@ -200,16 +210,7 @@ def create_receipt(receipt: dict) -> dict:
     }
 
 
-def _latest_receipt(comments_url: str) -> dict | None:
-    if not comments_url:
-        return None
-    req = urllib.request.Request(comments_url, headers=_github_headers())
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        comments = json.loads(resp.read().decode("utf-8"))
-    if not comments:
-        return None
-    receipts = [item for item in comments if RECEIPT_MARKER in str(item.get("body") or "")]
-    item = receipts[-1] if receipts else comments[-1]
+def _receipt_from_comment(item: dict) -> dict | None:
     body = str(item.get("body") or "")
     summary = _clean_text(body.replace(RECEIPT_MARKER, "").replace("### 修复回执", ""), MAX["summary"])
     kind = "comment"
@@ -226,6 +227,44 @@ def _latest_receipt(comments_url: str) -> dict | None:
         "created_at": item.get("created_at"),
         "kind": kind,
     }
+
+
+def _issue_number_from_url(url: str) -> int | None:
+    match = re.search(r"/issues/(\d+)$", str(url or ""))
+    return int(match.group(1)) if match else None
+
+
+def _latest_receipts(wanted: set[int]) -> dict[int, dict]:
+    """一次列出全仓库最近的评论,按工单号归位最新那条回执。
+
+    以前是每条工单单独请求一次 comments —— 列表放开到全量后那是几十次串行请求。
+    仓库级评论接口按时间倒序翻页,同一条工单**第一次**遇到的就是最新的,回执优先于普通评论。
+    """
+    found: dict[int, dict] = {}
+    if not (wanted and GITHUB_REPO):
+        return found
+    for page in range(1, COMMENTS_MAX_PAGES + 1):
+        params = urllib.parse.urlencode(
+            {"sort": "created", "direction": "desc", "per_page": COMMENTS_PAGE_SIZE, "page": page}
+        )
+        comments = _github_json(f"/issues/comments?{params}")
+        if not isinstance(comments, list) or not comments:
+            return found
+        for item in comments:
+            number = _issue_number_from_url(item.get("issue_url"))
+            if number is None or number not in wanted:
+                continue
+            existing = found.get(number)
+            if existing and existing.get("kind") == "receipt":
+                continue  # 已经拿到更新的回执
+            if existing and RECEIPT_MARKER not in str(item.get("body") or ""):
+                continue  # 已有更新的普通评论,这条更旧
+            receipt = _receipt_from_comment(item)
+            if receipt:
+                found[number] = receipt
+        if len(comments) < COMMENTS_PAGE_SIZE:
+            return found
+    return found
 
 
 def _detect_image(data: bytes) -> tuple[str, str] | None:
@@ -292,6 +331,20 @@ def _parse_multipart(raw: bytes, content_type: str, headers) -> dict:
     return form
 
 
+def parse_related_issues(raw: str) -> list[int]:
+    """把 `12`、`#12`、`#12, 15` 之类的自由输入解析成工单号列表(去重、保序、限量)。
+
+    写进正文后 GitHub 会自动把 `#12` 变成交叉引用,被引用的工单时间线上会出现一条 mention ——
+    不用额外接口,也不引入回复层级。
+    """
+    numbers: list[int] = []
+    for token in re.findall(r"\d{1,7}", raw or ""):
+        value = int(token)
+        if value > 0 and value not in numbers:
+            numbers.append(value)
+    return numbers[:MAX_RELATED_ISSUES]
+
+
 def build_issue(form: dict) -> dict | None:
     if _clean(form, "website"):  # honeypot
         return None
@@ -303,23 +356,30 @@ def build_issue(form: dict) -> dict | None:
 
     itype = _clean(form, "type")
     priority = _clean(form, "priority")
-    related = _clean(form, "related_packet")
+    related = parse_related_issues(_clean(form, "related_issues"))
     attachment = _clean(form, "attachment")
     screenshot_url = _clean(form, "screenshot_url")
     screenshot_name = _clean(form, "screenshot_name")
+
+    needs_review = _truthy(_clean(form, "needs_review"))
 
     labels = ["intake"]
     if itype in TYPE_LABELS:
         labels.append(TYPE_LABELS[itype])
     if priority in VALID_PRIORITIES:
         labels.append(f"P:{priority}")
+    if needs_review:
+        labels.append(REVIEW_LABEL)
 
     body = [
         f"**提交人:** {submitter}",
         f"**类型:** {itype or '未指定'}　**优先级:** {priority or '未指定'}",
     ]
+    if needs_review:
+        # 正文里也写一行:标签可能被人在 GitHub 上摘掉,正文是这条工单"未经证实"的原始声明
+        body.append(f"**{REVIEW_LABEL}:** 内容未经证实(含与 AI 讨论得出的结论),请其他成员复核后再采信")
     if related:
-        body.append(f"**相关想法卡片:** `{related}`")
+        body.append("**关联工单:** " + " ".join(f"#{n}" for n in related))
     if attachment:
         body.append(f"**附件链接:** {attachment}")
     if screenshot_url:
@@ -347,11 +407,16 @@ def create_issue(payload: dict) -> dict:
     return {"issue_url": data.get("html_url"), "number": data.get("number")}
 
 
-def _compact_issue(item: dict) -> dict:
+def _submitter_from_body(body: str) -> str:
+    """提交人只存在于正文首行(GitHub 作者是项目账号,对筛选没意义)。"""
+    match = re.search(r"^\*\*提交人:\*\*\s*(.+)$", str(body or ""), re.MULTILINE)
+    return _clean_text(match.group(1), MAX["submitter"]) if match else ""
+
+
+def _compact_issue(item: dict, receipt: dict | None = None) -> dict:
     milestone = item.get("milestone") or {}
-    receipt = None
-    if int(item.get("comments") or 0) > 0:
-        receipt = _latest_receipt(str(item.get("comments_url") or ""))
+    labels = [label.get("name") for label in item.get("labels", []) if label.get("name")]
+    body = str(item.get("body") or "")
     return {
         "number": item.get("number"),
         "title": str(item.get("title") or "").removeprefix("[反馈] "),
@@ -359,21 +424,30 @@ def _compact_issue(item: dict) -> dict:
         "url": item.get("html_url"),
         "created_at": item.get("created_at"),
         "updated_at": item.get("updated_at"),
-        "labels": [label.get("name") for label in item.get("labels", []) if label.get("name")],
+        "labels": labels,
         "comments": item.get("comments", 0),
         "milestone": milestone.get("title") if isinstance(milestone, dict) else None,
+        "submitter": _submitter_from_body(body),
+        # 标签可能被摘掉,正文那行不会 —— 两边任一成立就算待审核
+        "needs_review": REVIEW_LABEL in labels or f"**{REVIEW_LABEL}:**" in body,
         "receipt": receipt,
     }
 
 
-def list_issues(limit: int = 20) -> dict:
+def list_issues(limit: int = ISSUE_LIMIT) -> dict:
     now = time.time()
     if now - float(_issues_cache.get("ts", 0.0)) < ISSUE_CACHE_SECONDS:
         return {"issues": _issues_cache.get("data", []), "cached": True}
     if not GITHUB_REPO:
         return {"issues": [], "cached": False}
     params = urllib.parse.urlencode(
-        {"state": "all", "labels": "intake", "sort": "created", "direction": "desc", "per_page": limit}
+        {
+            "state": "all",
+            "labels": "intake",
+            "sort": "created",
+            "direction": "desc",
+            "per_page": max(1, min(limit, 100)),
+        }
     )
     req = urllib.request.Request(
         f"https://api.github.com/repos/{GITHUB_REPO}/issues?{params}",
@@ -381,7 +455,9 @@ def list_issues(limit: int = 20) -> dict:
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read().decode("utf-8"))
-    issues = [_compact_issue(item) for item in data if "pull_request" not in item]
+    items = [item for item in data if "pull_request" not in item]
+    receipts = _latest_receipts({int(i["number"]) for i in items if i.get("number")})
+    issues = [_compact_issue(item, receipts.get(int(item.get("number") or 0))) for item in items]
     _issues_cache.update({"ts": now, "data": issues})
     return {"issues": issues, "cached": False}
 
