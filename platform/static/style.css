@@ -19,6 +19,7 @@
   --code-ink: #b9c0e0;
   --dot: #2b2f45;
   --pdf-bg: #1a1b26;
+  --media-bg: #000000;   /* Manim 影片自身的固定画布,不随页面主题反相 */
   --shadow-lg: 0 22px 60px -30px rgba(0, 0, 0, .8);
   --shadow-panel: 0 30px 80px -30px rgba(0, 0, 0, .9);
   --on-accent: #0a0b14;  /* 压在渐变/强调底上的字 */
@@ -82,6 +83,7 @@
   --code-ink: #414a66;
   --dot: #d5d9e6;
   --pdf-bg: #eceef6;
+  --media-bg: #000000;
   --shadow-lg: 0 20px 46px -26px rgba(24, 28, 60, .34);
   --shadow-panel: 0 26px 66px -28px rgba(24, 28, 60, .38);
   --on-accent: #ffffff;
@@ -217,138 +219,75 @@ header.site nav a:hover { color: var(--ink); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* ---------- 首屏视频 ----------
-   宽屏时首屏排成两栏(文案左 / 影片右),并向右探出版心 ——
-   竖排会把影片推到折线以下,那就不叫"首屏视频"了。 */
-.hero.has-film { padding-bottom: 22px; }
-@media (min-width: 1000px) {
+   宽屏使用居中的 1120px 舞台;文案左沿仍与 720px 正文版心对齐。 */
+.hero.has-film { padding-bottom: 38px; }
+@media (min-width: 960px) {
   .hero.has-film {
-    display: grid; align-items: center; gap: 40px;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr);
-    margin-right: calc(-1 * max(0px, (min(1160px, 100vw - 48px) - 100%) / 2));
+    display: grid; align-items: center;
+    width: min(1120px, calc(100vw - 48px));
+    margin-left: 50%; transform: translateX(-50%);
+    grid-template-columns:
+      max(0px, calc((100% - 720px) / 2))
+      minmax(300px, 360px)
+      36px
+      minmax(0, 1fr);
   }
+  .hero.has-film .hero-copy { grid-column: 2; }
+  .hero.has-film .film { grid-column: 4; }
   .hero.has-film .lede { margin-bottom: 22px; }
 }
 
-.film { margin: 26px 0 0; }
-@media (min-width: 1000px) { .film { margin: 0; } }
-.film-stage {
-  position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
-  padding: 0; overflow: hidden; cursor: pointer;
-  background: var(--code-bg); border: 1px solid var(--line); border-radius: 18px;
+.film { min-width: 0; margin: 30px 0 0; }
+@media (min-width: 960px) { .film { margin: 0; } }
+.film-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px; margin-bottom: 12px;
+}
+.film-head > div { display: grid; min-width: 0; gap: 3px; }
+.film-label { color: var(--a2); font-family: var(--mono); font-size: 11px; }
+.film-head strong { color: var(--ink); font-size: 15px; font-weight: 700; }
+.film-dur {
+  flex: 0 0 auto; font-family: var(--mono); font-size: 12px; color: var(--faint);
+}
+.film-player {
+  display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
+  background: var(--media-bg); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: var(--shadow-lg);
-  /* 尺度大的表面要读起来更"厚":光晕比普通卡片重一档 */
-  transition: transform .42s cubic-bezier(.22,1,.36,1), box-shadow .42s, border-color .42s;
 }
-.film-stage:hover, .film-stage:focus-visible {
-  transform: translateY(-3px); border-color: var(--t1-bd-hi);
-  box-shadow: var(--shadow-lg), 0 0 0 1px var(--t1-bd), 0 24px 70px -34px var(--t1-bd-hi);
-}
-.film-stage:focus-visible { outline: none; }
-.film-stage:active { transform: translateY(-1px) scale(.995); }
-.film-poster, .film-loop {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; display: block;
-}
-/* 预告叠在海报之上淡入 —— 海报与视频首帧不必是同一张,也不会闪 */
-.film-loop { opacity: 0; transition: opacity .6s ease; }
-.film-loop.is-on { opacity: 1; }
-/* 底部压暗,文字才压得住画面(画面本身是深色,但节拍之间会变亮) */
-.film-scrim {
-  position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(to top, rgba(4, 5, 12, .92) 0%, rgba(4, 5, 12, .55) 26%, rgba(4, 5, 12, .06) 52%, transparent 72%);
-}
-.film-play {
-  position: absolute; top: 50%; left: 50%; width: 62px; height: 62px;
-  transform: translate(-50%, -50%); display: grid; place-items: center;
-  border-radius: 50%; background: rgba(255, 255, 255, .13);
-  border: 1px solid rgba(255, 255, 255, .38);
-  backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
-  transition: transform .42s cubic-bezier(.22,1,.36,1), background .3s;
-}
-.film-play svg { width: 27px; height: 27px; fill: #fff; margin-left: 3px; }
-.film-stage:hover .film-play, .film-stage:focus-visible .film-play {
-  transform: translate(-50%, -50%) scale(1.09); background: rgba(255, 255, 255, .2);
-}
-.film-meta {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end; gap: 4px 12px; padding: 16px 18px; text-align: left;
-}
-.film-meta em {
-  grid-column: 1 / -1; font-style: normal; font-family: var(--mono);
-  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #9fd8e6;
-}
-.film-meta strong { color: #fff; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.film-dur { font-family: var(--mono); font-size: 12px; color: rgba(255, 255, 255, .72); }
-.film figcaption { margin: 12px 2px 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+.film-player:focus-visible { outline: 2px solid var(--a2); outline-offset: 3px; }
+.film figcaption { margin: 12px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
 .film-note { display: block; margin-top: 5px; color: var(--faint); font-size: 12px; }
-
-/* 灯箱:看 6 分钟的片子是"专注任务",配压暗遮罩把背景推远(而非并排浏览) */
-.film-box { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px; }
-.film-box[hidden] { display: none; }
-.film-box-scrim {
-  position: absolute; inset: 0; background: rgba(3, 4, 10, .78);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  opacity: 0; transition: opacity .3s ease;
-}
-.film-box.is-open .film-box-scrim { opacity: 1; }
-.film-box-inner {
-  position: relative; width: min(1120px, 100%);
-  /* 从卡片的位置放大出来:开合走同一条路径,空间关系才连得上 */
-  transform: scale(.94); opacity: 0;
-  transition: transform .42s cubic-bezier(.22,1,.36,1), opacity .3s ease;
-}
-.film-box.is-open .film-box-inner { transform: none; opacity: 1; }
-.film-full {
-  display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px;
-  background: #000; box-shadow: var(--shadow-panel);
-}
-.film-box-close {
-  position: absolute; top: -44px; right: -4px; width: 34px; height: 34px; line-height: 1;
-  color: #fff; font-size: 21px; cursor: pointer;
-  background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .3);
-  border-radius: 10px;
-}
-.film-box-close:hover { background: rgba(255, 255, 255, .22); }
-@media (max-width: 560px) {
-  .film-box { padding: 14px; }
-  .film-box-close { top: -40px; right: 0; }
-  .film-play { width: 52px; height: 52px; }
-  .film-play svg { width: 23px; height: 23px; }
-}
 
 /* ---------- 首屏入场 ----------
    逐级揭幕:眉标 → 标题 → 导语 → 标签 → 影片,每级差 70ms。
    曲线是临界阻尼的近似(不回弹)—— 没有手势带动的入场加回弹会显得轻浮。 */
+/* 起始状态放在 @keyframes 的 from 里、配 fill-mode: backwards,而不是写在元素上。
+   差别在失败方向:写在元素上时,动画一旦没跑(不支持/被禁用)首屏就永远是空白;
+   这样写则退化成"直接可见"。 */
 .hero .r-1, .hero .r-2, .hero .r-3, .hero .r-4 {
-  opacity: 0; transform: translateY(14px);
-  animation: rise .62s cubic-bezier(.22,1,.36,1) forwards;
+  animation: rise .62s cubic-bezier(.22,1,.36,1) backwards;
 }
 .hero .r-1 { animation-delay: .05s; }
 .hero .r-2 { animation-delay: .12s; }
 .hero .r-3 { animation-delay: .19s; }
 .hero .r-4 { animation-delay: .26s; }
-@keyframes rise { to { opacity: 1; transform: none; } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
 /* 影片不是"淡进来",是"显影":模糊与缩放一起收,读起来像一块真的材质到位了 */
-.hero .r-5 {
-  opacity: 0; transform: translateY(20px) scale(.965); filter: blur(14px);
-  animation: materialize .85s cubic-bezier(.22,1,.36,1) .3s forwards;
-}
+.hero .r-5 { animation: materialize .85s cubic-bezier(.22,1,.36,1) .3s backwards; }
 @keyframes materialize {
+  from { opacity: 0; transform: translateY(20px) scale(.965); filter: blur(14px); }
   60% { filter: blur(0); }
-  to { opacity: 1; transform: none; filter: blur(0); }
 }
 /* 影片就位时背景极光跟着亮一下,像灯光打上来 */
 .aurora { animation: drift 22s ease-in-out infinite alternate, bloom 1.5s ease-out .3s both; }
 @keyframes bloom { from { opacity: .35; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  /* 减弱动效:只留淡入,不要位移/模糊/缩放,循环预告也不自动播 */
+  /* 减弱动效:只留淡入,不要位移/模糊/缩放。 */
   .hero .r-1, .hero .r-2, .hero .r-3, .hero .r-4, .hero .r-5 {
-    animation: fadein .3s ease forwards; transform: none; filter: none;
+    animation: fadein .3s ease backwards; transform: none; filter: none;
   }
-  @keyframes fadein { to { opacity: 1; } }
-  .film-stage, .film-play, .film-box-inner { transition: none; }
+  @keyframes fadein { from { opacity: 0; } }
   .aurora { animation: none; }
 }
 .chip {

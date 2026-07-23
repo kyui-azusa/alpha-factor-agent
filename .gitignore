@@ -35,6 +35,8 @@ platform/uploads/
 videos/**/media/
 # 快照 PDF 是 paper/main.pdf 的副本,由 build.py 生成,不必在仓库里存两份
 platform/dist/paper.pdf
+# 首屏媒体由 platform/media/ 复制到发布目录,不在 Git 里存两份
+platform/dist/media/
 
 # 聚源探查过程中落盘的临时样本(含真实数据切片)
 results/tmp_*.csv

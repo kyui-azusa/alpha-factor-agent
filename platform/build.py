@@ -23,6 +23,7 @@ import graph as graph_mod
 ROOT = Path(__file__).resolve().parent
 PACKETS_DIR = ROOT / "content" / "packets"
 SHOWCASE_DIR = ROOT / "content" / "showcase"
+HERO_FILE = ROOT / "content" / "hero.md"
 CSS_FILE = ROOT / "static" / "style.css"
 DIST = ROOT / "dist"
 
@@ -78,6 +79,35 @@ def load_showcase() -> list[dict]:
     items = [m for m in items if m.get("public") is True]
     items.sort(key=lambda m: (int(m.get("order", 999)), str(m.get("id", ""))))
     return items
+
+
+def load_hero_film() -> dict:
+    """首屏视频。同样 fail-closed:没有 hero.md 或没写 public: true 就整块不渲染(ADR-0020)。"""
+    if not HERO_FILE.exists():
+        return {}
+    meta = parse_packet(HERO_FILE)
+    if meta.get("public") is not True:
+        return {}
+    for key in ("poster_dark", "poster_light", "video"):
+        if not (ROOT / str(meta.get(key, ""))).exists():
+            raise FileNotFoundError(
+                f"hero.md 的 {key} 指向 {meta.get(key)},文件不存在 —— 先跑 scripts/make_hero_media.py"
+            )
+    return meta
+
+
+def copy_media(film: dict) -> list[str]:
+    """视频不能内联进单文件 HTML(6MB base64 会涨到 8MB+),按 paper.pdf 的老规矩单独拷。"""
+    if not film:
+        return []
+    names = []
+    for key in ("poster_dark", "poster_light", "video"):
+        rel = str(film[key])
+        dest = DIST / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / rel, dest)
+        names.append(rel)
+    return names
 
 
 def copy_snapshots(items: list[dict]) -> list[tuple[str, str]]:
@@ -245,6 +275,29 @@ def render_metric_card(g: "graph_mod.Graph") -> str:
             <span class="m-head">{_esc(layer["label"])}<em>{_esc(layer.get("note", ""))}</em></span>
             <div class="m-chips">{chips}</div>
           </aside>"""
+
+
+def render_film(film: dict) -> str:
+    """首屏内联播放器。原生控件保证移动端可直接播放,不再跳进灯箱。"""
+    if not film:
+        return ""
+    status = film.get("status", "")
+    return f"""  <figure class="film r-5">
+    <div class="film-head">
+      <div>
+        <span class="film-label">{_esc(film.get('label', '演示'))}{f' · {_esc(status)}' if status else ''}</span>
+        <strong>{_esc(film.get('title', ''))}</strong>
+      </div>
+      <span class="film-dur">{_esc(film.get('duration', ''))}</span>
+    </div>
+    <video class="film-player" src="{_esc(film['video'])}"
+           poster="{_esc(film['poster_dark'])}"
+           data-theme-poster data-poster-dark="{_esc(film['poster_dark'])}"
+           data-poster-light="{_esc(film['poster_light'])}"
+           controls playsinline preload="metadata"
+           aria-label="{_esc(film.get('title', '演示视频'))}"></video>
+    <figcaption>{_esc(film.get('summary', ''))}{f'<span class="film-note">{_esc(film["note"])}</span>' if film.get("note") else ''}</figcaption>
+  </figure>"""
 
 
 def render_graph_section() -> tuple[str, str]:
@@ -425,21 +478,25 @@ THEME_TOGGLE = (
 )
 
 
-def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
+def render_page(packets: list[dict], showcase: list[dict], css: str, film: dict | None = None) -> str:
+    film = film or {}
     graph_html, graph_data = render_graph_section()
     cards = "\n".join(render_packet_card(p) for p in packets) or "<p>还没有想法卡片。</p>"
-    hero = """<section class="hero">
-  <span class="eyebrow"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
-  <h1>结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
-  <p class="lede">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
-  以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
-  <div class="chips">
-    <span class="chip">防 look-ahead</span>
-    <span class="chip">样本外滚动</span>
-    <span class="chip">纯代码回测</span>
-    <span class="chip">有对照组</span>
-    <span class="chip">阴性结果也是结论</span>
+    hero = f"""<section class="hero{' has-film' if film else ''}">
+  <div class="hero-copy">
+    <span class="eyebrow r-1"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
+    <h1 class="r-2">结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
+    <p class="lede r-3">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
+    以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
+    <div class="chips r-4">
+      <span class="chip">防 look-ahead</span>
+      <span class="chip">样本外滚动</span>
+      <span class="chip">纯代码回测</span>
+      <span class="chip">有对照组</span>
+      <span class="chip">阴性结果也是结论</span>
+    </div>
   </div>
+{render_film(film)}
 </section>"""
     return f"""<!doctype html>
 <html lang="zh-CN" data-theme="dark">
@@ -701,7 +758,14 @@ JS = """
 (function () {
   var root = document.documentElement;
   var btn = document.querySelector('[data-theme-toggle]');
+  var film = document.querySelector('[data-theme-poster]');
   var KEY = 'alpha-theme';
+  function syncFilmPoster() {
+    if (!film) return;
+    var key = root.getAttribute('data-theme') === 'light' ? 'posterLight' : 'posterDark';
+    var next = film.dataset[key];
+    if (next && film.getAttribute('poster') !== next) film.setAttribute('poster', next);
+  }
   function label() {
     var light = root.getAttribute('data-theme') === 'light';
     var text = light ? '切换到深色' : '切换到浅色';
@@ -718,6 +782,7 @@ JS = """
       var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
       root.setAttribute('data-theme', next);
       try { localStorage.setItem(KEY, next); } catch (e) {}
+      syncFilmPoster();
       label();
     });
   }
@@ -726,11 +791,13 @@ JS = """
     var follow = function (e) {
       if (stored()) return;   // 手动选过就不再被系统覆盖
       root.setAttribute('data-theme', e.matches ? 'light' : 'dark');
+      syncFilmPoster();
       label();
     };
     if (mq.addEventListener) mq.addEventListener('change', follow);
     else if (mq.addListener) mq.addListener(follow);
   }
+  syncFilmPoster();
   label();
 })();
 
@@ -1193,17 +1260,21 @@ if (form) {
 def main() -> None:
     packets = load_packets()
     showcase = load_showcase()
+    film = load_hero_film()
     css = CSS_FILE.read_text(encoding="utf-8") if CSS_FILE.exists() else ""
     DIST.mkdir(parents=True, exist_ok=True)
     snapshots = copy_snapshots(showcase)
-    (DIST / "index.html").write_text(render_page(packets, showcase, css), encoding="utf-8")
+    media = copy_media(film)
+    (DIST / "index.html").write_text(render_page(packets, showcase, css, film), encoding="utf-8")
     print(f"✔ 单文件生成 {len(packets)} 张卡片 / {len(showcase)} 项成果 → {(DIST / 'index.html').relative_to(ROOT.parent)}")
     for name, snap_date in snapshots:
         print(f"  快照 {name}(源修改于 {snap_date})")
+    for name in media:
+        print(f"  首屏视频 {name}({(DIST / name).stat().st_size / 1024:.0f} KB)")
     print(f"  生成日期 {date.today()};工单 → 同源 /api/intake")
-    if snapshots:
-        names = " ".join(n for n, _ in snapshots)
-        print(f"  部署需上传:index.html {names}")
+    extras = [n for n, _ in snapshots] + media
+    if extras:
+        print(f"  部署需上传:index.html {' '.join(extras)}")
 
 
 if __name__ == "__main__":

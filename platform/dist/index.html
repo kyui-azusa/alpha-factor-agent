@@ -30,6 +30,7 @@
   --code-ink: #b9c0e0;
   --dot: #2b2f45;
   --pdf-bg: #1a1b26;
+  --media-bg: #000000;   /* Manim 影片自身的固定画布,不随页面主题反相 */
   --shadow-lg: 0 22px 60px -30px rgba(0, 0, 0, .8);
   --shadow-panel: 0 30px 80px -30px rgba(0, 0, 0, .9);
   --on-accent: #0a0b14;  /* 压在渐变/强调底上的字 */
@@ -93,6 +94,7 @@
   --code-ink: #414a66;
   --dot: #d5d9e6;
   --pdf-bg: #eceef6;
+  --media-bg: #000000;
   --shadow-lg: 0 20px 46px -26px rgba(24, 28, 60, .34);
   --shadow-panel: 0 26px 66px -28px rgba(24, 28, 60, .38);
   --on-accent: #ffffff;
@@ -226,6 +228,79 @@ header.site nav a:hover { color: var(--ink); }
 }
 .lede { color: var(--muted); font-size: 16px; margin: 0 0 20px; max-width: 46ch; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- 首屏视频 ----------
+   宽屏使用居中的 1120px 舞台;文案左沿仍与 720px 正文版心对齐。 */
+.hero.has-film { padding-bottom: 38px; }
+@media (min-width: 960px) {
+  .hero.has-film {
+    display: grid; align-items: center;
+    width: min(1120px, calc(100vw - 48px));
+    margin-left: 50%; transform: translateX(-50%);
+    grid-template-columns:
+      max(0px, calc((100% - 720px) / 2))
+      minmax(300px, 360px)
+      36px
+      minmax(0, 1fr);
+  }
+  .hero.has-film .hero-copy { grid-column: 2; }
+  .hero.has-film .film { grid-column: 4; }
+  .hero.has-film .lede { margin-bottom: 22px; }
+}
+
+.film { min-width: 0; margin: 30px 0 0; }
+@media (min-width: 960px) { .film { margin: 0; } }
+.film-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px; margin-bottom: 12px;
+}
+.film-head > div { display: grid; min-width: 0; gap: 3px; }
+.film-label { color: var(--a2); font-family: var(--mono); font-size: 11px; }
+.film-head strong { color: var(--ink); font-size: 15px; font-weight: 700; }
+.film-dur {
+  flex: 0 0 auto; font-family: var(--mono); font-size: 12px; color: var(--faint);
+}
+.film-player {
+  display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
+  background: var(--media-bg); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+}
+.film-player:focus-visible { outline: 2px solid var(--a2); outline-offset: 3px; }
+.film figcaption { margin: 12px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+.film-note { display: block; margin-top: 5px; color: var(--faint); font-size: 12px; }
+
+/* ---------- 首屏入场 ----------
+   逐级揭幕:眉标 → 标题 → 导语 → 标签 → 影片,每级差 70ms。
+   曲线是临界阻尼的近似(不回弹)—— 没有手势带动的入场加回弹会显得轻浮。 */
+/* 起始状态放在 @keyframes 的 from 里、配 fill-mode: backwards,而不是写在元素上。
+   差别在失败方向:写在元素上时,动画一旦没跑(不支持/被禁用)首屏就永远是空白;
+   这样写则退化成"直接可见"。 */
+.hero .r-1, .hero .r-2, .hero .r-3, .hero .r-4 {
+  animation: rise .62s cubic-bezier(.22,1,.36,1) backwards;
+}
+.hero .r-1 { animation-delay: .05s; }
+.hero .r-2 { animation-delay: .12s; }
+.hero .r-3 { animation-delay: .19s; }
+.hero .r-4 { animation-delay: .26s; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+/* 影片不是"淡进来",是"显影":模糊与缩放一起收,读起来像一块真的材质到位了 */
+.hero .r-5 { animation: materialize .85s cubic-bezier(.22,1,.36,1) .3s backwards; }
+@keyframes materialize {
+  from { opacity: 0; transform: translateY(20px) scale(.965); filter: blur(14px); }
+  60% { filter: blur(0); }
+}
+/* 影片就位时背景极光跟着亮一下,像灯光打上来 */
+.aurora { animation: drift 22s ease-in-out infinite alternate, bloom 1.5s ease-out .3s both; }
+@keyframes bloom { from { opacity: .35; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* 减弱动效:只留淡入,不要位移/模糊/缩放。 */
+  .hero .r-1, .hero .r-2, .hero .r-3, .hero .r-4, .hero .r-5 {
+    animation: fadein .3s ease backwards; transform: none; filter: none;
+  }
+  @keyframes fadein { from { opacity: 0; } }
+  .aurora { animation: none; }
+}
 .chip {
   font-family: var(--mono); font-size: 12.5px; color: var(--ink);
   padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
@@ -708,18 +783,36 @@ button.go.open::after { content: " ▾"; color: var(--a2); }
   <nav><a href="#feed">想法流</a><a href="#graph">方法图</a><a href="#showcase">成果</a><a href="#submit" class="nav-cta">提问 / 建议</a><button type="button" class="theme-toggle" data-theme-toggle aria-label="切换配色"><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.6v2M12 19.4v2M4.4 4.4l1.4 1.4M18.2 18.2l1.4 1.4M2.6 12h2M19.4 12h2M4.4 19.6l1.4-1.4M18.2 5.8l1.4-1.4"/></svg><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.6A8.6 8.6 0 0 1 9.4 4 7.1 7.1 0 1 0 20 14.6Z"/></svg></button></nav>
 </header>
 <main id="top">
-<section class="hero">
-  <span class="eyebrow"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
-  <h1>结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
-  <p class="lede">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
-  以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
-  <div class="chips">
-    <span class="chip">防 look-ahead</span>
-    <span class="chip">样本外滚动</span>
-    <span class="chip">纯代码回测</span>
-    <span class="chip">有对照组</span>
-    <span class="chip">阴性结果也是结论</span>
+<section class="hero has-film">
+  <div class="hero-copy">
+    <span class="eyebrow r-1"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
+    <h1 class="r-2">结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
+    <p class="lede r-3">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
+    以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
+    <div class="chips r-4">
+      <span class="chip">防 look-ahead</span>
+      <span class="chip">样本外滚动</span>
+      <span class="chip">纯代码回测</span>
+      <span class="chip">有对照组</span>
+      <span class="chip">阴性结果也是结论</span>
+    </div>
   </div>
+  <figure class="film r-5">
+    <div class="film-head">
+      <div>
+        <span class="film-label">方法讲解 · 过程稿</span>
+        <strong>先讲出道理,再让代码裁决</strong>
+      </div>
+      <span class="film-dur">5:56</span>
+    </div>
+    <video class="film-player" src="media/demo.mp4"
+           poster="media/poster-dark.jpg"
+           data-theme-poster data-poster-dark="media/poster-dark.jpg"
+           data-poster-light="media/poster-light.jpg"
+           controls playsinline preload="metadata"
+           aria-label="先讲出道理,再让代码裁决"></video>
+    <figcaption>收益怎么拆成几笔账、为什么转到横截面、Rank IC 的偏置如何在聚合中显形、pit_merge 怎么挡住穿越,最后是那条不许 LLM 碰回测的四步闭环。<span class="film-note">内部过程稿:讲的是方法与纪律,不含最终因子与结果(ADR-0003)。</span></figcaption>
+  </figure>
 </section>
 <section id="feed" class="feed-wrap">
   <div class="section-label"><span>想法流</span><em>8 张卡片</em></div>
@@ -962,7 +1055,7 @@ universe      date, code                                    ← 历史成分股,
 <p class="note">实验用聚源 JYDB 真实数据,窗口已由 2020–2021 扩至 2015–2021。此前版本存在两处已修正的缺陷: 复权因子被写死为 1.0(价格实为未复权),以及缺少行业分类因而无法做行业中性化。 统计口径改用 Newey-West 修正 t 值 —— 持有期重叠会把朴素 t 值高估三到四倍(实测 5.93 → 1.60)。 尚未纳入停牌涨跌停 ST 过滤。结果定位为「初步实证与系统验收」,不是稳健的 alpha 发现。</p>
 <details class="menu"><summary>目录:这篇讲了什么（9 节）</summary><ol><li>引言</li><li>相关工作与定位</li><li>系统架构</li><li>数据契约与点时间对齐</li><li>方法(受限表达式引擎 / 基线因子 / 回测指标 / Agent 闭环)</li><li>实验:聚源真实数据下的初步实证</li><li>可复现性声明</li><li>讨论、局限与后续工作</li><li>结论</li></ol></details>
 <p class="sc-body">站内是我选定的快照版本;论文在仓库里持续追加,想看最新进展的直接进仓库。</p>
-<div class="go-row"><button type="button" class="go primary" data-embed="/paper.pdf" aria-expanded="false">站内阅读<em class="stamp">2026-07-21</em></button><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf" target="_blank" rel="noopener">仓库最新版</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.tex" target="_blank" rel="noopener">LaTeX 源码</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent" target="_blank" rel="noopener">代码仓库</a></div><div class="embed" data-embed-wrap hidden>
+<div class="go-row"><button type="button" class="go primary" data-embed="/paper.pdf" aria-expanded="false">站内阅读<em class="stamp">2026-07-23</em></button><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.pdf" target="_blank" rel="noopener">仓库最新版</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent/blob/main/paper/main.tex" target="_blank" rel="noopener">LaTeX 源码</a><a class="go" href="https://github.com/kyui-azusa/alpha-factor-agent" target="_blank" rel="noopener">代码仓库</a></div><div class="embed" data-embed-wrap hidden>
     <iframe data-embed-frame title="短论文 · 可解释 Alpha 因子生成智能体" loading="lazy"></iframe>
     <p class="embed-fallback">看不到内容?<a href="/paper.pdf" target="_blank" rel="noopener">在新标签打开</a>(部分手机浏览器不支持内嵌 PDF)。</p>
   </div>
@@ -1288,7 +1381,14 @@ var GRAPH_DATA = {"layers":["field","align","operator","factor","metric"],"layer
 (function () {
   var root = document.documentElement;
   var btn = document.querySelector('[data-theme-toggle]');
+  var film = document.querySelector('[data-theme-poster]');
   var KEY = 'alpha-theme';
+  function syncFilmPoster() {
+    if (!film) return;
+    var key = root.getAttribute('data-theme') === 'light' ? 'posterLight' : 'posterDark';
+    var next = film.dataset[key];
+    if (next && film.getAttribute('poster') !== next) film.setAttribute('poster', next);
+  }
   function label() {
     var light = root.getAttribute('data-theme') === 'light';
     var text = light ? '切换到深色' : '切换到浅色';
@@ -1305,6 +1405,7 @@ var GRAPH_DATA = {"layers":["field","align","operator","factor","metric"],"layer
       var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
       root.setAttribute('data-theme', next);
       try { localStorage.setItem(KEY, next); } catch (e) {}
+      syncFilmPoster();
       label();
     });
   }
@@ -1313,11 +1414,13 @@ var GRAPH_DATA = {"layers":["field","align","operator","factor","metric"],"layer
     var follow = function (e) {
       if (stored()) return;   // 手动选过就不再被系统覆盖
       root.setAttribute('data-theme', e.matches ? 'light' : 'dark');
+      syncFilmPoster();
       label();
     };
     if (mq.addEventListener) mq.addEventListener('change', follow);
     else if (mq.addListener) mq.addListener(follow);
   }
+  syncFilmPoster();
   label();
 })();
 

@@ -80,6 +80,10 @@ _Avoid_: internal teammates, evaluator, anonymous public
 The static site's first-screen experience for the social audience: a stream of idea packets rather than a project introduction or marketing page. It may include one lightweight identity line for the research theme, but the feed remains the main first-screen object.
 _Avoid_: homepage hero, project overview first, report index
 
+**Theme-Aware Film Cover**:
+The first-screen method film uses one canonical dark Manim video in both page themes, with separate light and dark static posters generated from one shared composition. Theme changes may update only the poster and must preserve the player's source, current time, playback state, volume, and buffer.
+_Avoid_: dual video exports, source swapping on theme change, interrupted playback
+
 **Packet Source File**:
 A repository Markdown or YAML content file that stores an idea packet and its metadata for static-site generation.
 _Avoid_: database row, manual website-only content
