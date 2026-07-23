@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from typing import Any
+
 from src.agents.json_utils import factor_from_json, parse_llm_json
 from src.factors.engine import FactorExpr
 from src.llm.client import LLMClient
@@ -13,9 +16,38 @@ def _parse_json_array(raw: str) -> list:
     return data
 
 
+def _generation_params(client: Any) -> dict[str, Any]:
+    params = getattr(client, "generation_params", None)
+    if callable(params):
+        return dict(params())
+    return {"backend": "unknown"}
+
+
+def _stamp_generation_metadata(factor: FactorExpr, proposal_rank: int, client: Any) -> None:
+    metadata = factor.metadata
+    generation = metadata.setdefault("generation", {})
+    generation["params"] = _generation_params(client)
+    generation["proposal_rank"] = proposal_rank
+    generation.setdefault("generated_at_utc", datetime.now(UTC).isoformat())
+
+    metadata.setdefault("source_seed_factors", metadata.get("seed_factors", []))
+    metadata.setdefault("synthesis_method", metadata.get("generation_method", "unspecified"))
+    metadata.setdefault("mechanism_change", "unspecified")
+    metadata.setdefault("expression_version", "v1")
+    metadata.setdefault(
+        "lineage",
+        {
+            "source_seed_factors": metadata.get("source_seed_factors", []),
+            "synthesis_method": metadata.get("synthesis_method", "unspecified"),
+            "mechanism_change": metadata.get("mechanism_change", "unspecified"),
+            "expression_version": metadata.get("expression_version", "v1"),
+        },
+    )
+
+
 def propose_factors(existing_factors, field_dict, n: int = 5, client: LLMClient | None = None) -> list[FactorExpr]:
     client = client or LLMClient()
-    prompt = GENERATE_FACTORS_PROMPT.format(existing_factors=existing_factors, field_dict=field_dict, n=n)
+    prompt = GENERATE_FACTORS_PROMPT.format(existing_factors=existing_factors, generation_context=field_dict, n=n)
     last_error: Exception | None = None
     data = []
     for attempt in range(3):
@@ -29,6 +61,8 @@ def propose_factors(existing_factors, field_dict, n: int = 5, client: LLMClient 
     else:
         raise ValueError(f"LLM factor proposal could not be parsed: {last_error}")
     factors = []
-    for item in data[:n]:
-        factors.append(factor_from_json(item))
+    for proposal_rank, item in enumerate(data[:n], start=1):
+        factor = factor_from_json(item)
+        _stamp_generation_metadata(factor, proposal_rank, client)
+        factors.append(factor)
     return factors

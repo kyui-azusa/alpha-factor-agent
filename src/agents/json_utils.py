@@ -39,9 +39,16 @@ def factor_from_json(item: dict[str, Any]) -> "FactorExpr":
         raise ValueError(f"factor JSON missing keys: {sorted(missing)}")
     if not isinstance(item["fields_used"], list) or not all(isinstance(field, str) for field in item["fields_used"]):
         raise ValueError("factor JSON fields_used must be a list of strings")
+    known = {"name", "expression", "economic_rationale", "fields_used", "formula", "metadata"}
+    metadata = dict(item.get("metadata") or {})
+    for key, value in item.items():
+        if key not in known:
+            metadata[key] = value
     return FactorExpr(
         name=str(item["name"]),
         expression=str(item["expression"]),
         economic_rationale=str(item["economic_rationale"]),
         fields_used=list(item["fields_used"]),
+        formula=str(item["formula"]) if item.get("formula") is not None else None,
+        metadata=metadata,
     )

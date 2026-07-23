@@ -1,6 +1,6 @@
 # platform —— 想法流展示网站 + 同源工单入口
 
-研究项目的轻量分享面(深色 AI-native 风格)。想法卡片从研究过程沉淀而来;工单入口是页面内
+研究项目的轻量分享面(AI-native 风格,深色 / 白天双主题)。想法卡片从研究过程沉淀而来;工单入口是页面内
 **问卷星式结构化表单**,提交后由后端用**项目所有者账号**同步成 GitHub Issue —— 提交者无需 GitHub 账号。
 
 | 决策 | ADR |
@@ -16,7 +16,7 @@
 ```
 platform/
 ├── content/packets/*.md   想法卡片源文件(YAML frontmatter + 可选正文)
-├── static/style.css       深色科技风样式(移动优先)
+├── static/style.css       样式(移动优先;深/浅两套 token,见下)
 ├── build.py               生成器 → 单个自包含 dist/index.html(内联 CSS/JS)
 ├── intake_service.py      工单后端(stdlib;PAT server-side 建 issue/回执,无 token 时 dry-run)
 └── uploads/               本地/线上截图落点(线上建议映射到 /var/www/alpha.cihua.run/uploads)
@@ -27,6 +27,29 @@ platform/
 ```bash
 python platform/build.py        # → platform/dist/index.html(单文件)
 ```
+
+## 配色(深 / 浅)
+
+顶栏右上角一枚按钮切换,选择存 `localStorage['alpha-theme']`;**没选过就跟随系统**,白天自动是浅色。
+主题在 `<head>` 的一小段脚本里就定好,避免先闪一帧深色。
+
+方法图那一节还有个滚动展开:进场时与版心同宽,滚到它先粘住(`.graph-sticky`),
+随滚动把画布推到「整张图刚好放得下」再放行(终点 = `--canvas`,由 `build.py` 按真实布局写入)。
+进度写在 `--gx`(0→1)上,由 `GRAPH_JS` 按 `.graph-runway` 的行程算。窄屏 / 矮屏 / reduced-motion 直接给展开态,不粘。
+
+**评价指标不进画布**(`build.py` 的 `OVERLAY_LAYERS`):它与每个因子都相连,画进去是一片蜘蛛网还白占一列。
+改成浮在画布右上角的贴片(`.metrics`),点它照样高亮完整上游链路 + 开回溯面板,ADR-0019 的论点不变。
+`layout(exclude=...)` 只是不画那一层,**排序仍用完整边集**;`export_graph.py` 不传 exclude,
+所以论文/PPT 用的独立 SVG 仍是完整五层(已按逐字节比对确认没变)。
+注意 `body` 用的是 `overflow-x: clip` 而非 `hidden` —— `hidden` 会让 body 变成滚动容器,sticky 会失效。
+
+**不要让展开量影响页面高度**,否则临界点上会抽:提示行只切透明度(留位)不切 `display`,
+横向滚动条藏掉(经典滚动条在"刚好放得下"处反复出没,每次跳 15px),行程取 `.graph-runway`
+而非「track − sticky」。另外几何只在 resize(去抖 120ms)时量,滚动路径纯算术、量化到 1%、两端吸附。
+
+改样式的规矩:**不写字面色,只用 token**(`--ink/--muted/--well/--t1-*/--t2-*/...`),
+两套值都在 `style.css` 顶部的 `:root[data-theme="dark"|"light"]` 里。新加颜色要同时补两套。
+方法图是内联 SVG,同样吃 `--g-*` token;`export_graph.py` 导出的独立 SVG 仍写死颜色(PPT/论文里没有 CSS)。
 
 ## 本地联调后端
 

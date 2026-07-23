@@ -118,8 +118,12 @@ def ancestors(graph: Graph, node_id: str) -> set[str]:
     return seen
 
 
-def layout(graph: Graph) -> dict:
-    """分层 + 重心法排序。平局按 id 字典序 → 输出完全确定。"""
+def layout(graph: Graph, exclude: set[str] | frozenset[str] = frozenset()) -> dict:
+    """分层 + 重心法排序。平局按 id 字典序 → 输出完全确定。
+
+    `exclude` 里的层不进画布(站内把评价指标抽出来做成浮层贴片),但仍参与重心排序 ——
+    排序用的是完整的边集,少画一列不该把前面几列的顺序也搅乱。
+    """
     layer_ids = graph.layer_ids()
     columns = {lid: graph.nodes_in(lid) for lid in layer_ids}
 
@@ -149,12 +153,13 @@ def layout(graph: Graph) -> dict:
             for i, n in enumerate(columns[lid]):
                 index[n] = i
 
-    rows_max = max((len(v) for v in columns.values()), default=1)
-    width = MARGIN_X * 2 + len(layer_ids) * NODE_W + (len(layer_ids) - 1) * COL_GAP
+    drawn = [lid for lid in layer_ids if lid not in exclude]
+    rows_max = max((len(columns[lid]) for lid in drawn), default=1)
+    width = MARGIN_X * 2 + len(drawn) * NODE_W + (len(drawn) - 1) * COL_GAP
     height = MARGIN_TOP + rows_max * ROW_PITCH - ROW_GAP + MARGIN_BOTTOM
 
     pos: dict[str, tuple[float, float]] = {}
-    for col, lid in enumerate(layer_ids):
+    for col, lid in enumerate(drawn):
         members = columns[lid]
         block_h = len(members) * ROW_PITCH - ROW_GAP
         top = MARGIN_TOP + (rows_max * ROW_PITCH - ROW_GAP - block_h) / 2
@@ -162,7 +167,7 @@ def layout(graph: Graph) -> dict:
         for row, node_id in enumerate(members):
             pos[node_id] = (x, top + row * ROW_PITCH)
 
-    return {"pos": pos, "columns": columns, "width": width, "height": height}
+    return {"pos": pos, "columns": columns, "layers": drawn, "width": width, "height": height}
 
 
 def _esc(s) -> str:
@@ -180,19 +185,33 @@ def render_svg(graph: Graph, laid: dict, standalone: bool = False, theme: str = 
     pos = laid["pos"]
     width, height = laid["width"], laid["height"]
 
-    ink = "#eef0fa" if theme == "dark" else "#12131c"
-    faint = "#656b86" if theme == "dark" else "#8a8fa6"
+    # 站内内联的图要跟着页面主题走 → 交给 CSS 变量;独立导出(PPT/论文)必须自带颜色 → 写死。
+    if standalone:
+        ink = "#eef0fa" if theme == "dark" else "#12131c"
+        faint = "#656b86" if theme == "dark" else "#8a8fa6"
+        lum = "62%" if theme == "dark" else "44%"
+        fill_lum = "50%"
+        guard = "hsl(190 90% 60%)"
+        fill_a = {False: ".09", True: ".18"}
+    else:
+        ink = "var(--g-ink)"
+        faint = "var(--g-faint)"
+        lum = "var(--g-lum)"
+        fill_lum = "var(--g-fill-lum)"
+        guard = "var(--g-guard)"
+        fill_a = {False: "var(--g-fill-a)", True: "var(--g-fill-a-emph)"}
     bg = "#06070e" if theme == "dark" else "#ffffff"
-    lum = 62 if theme == "dark" else 44
 
-    # 层标题
+    # 层标题(只画进了画布的那几层)
+    drawn = laid.get("layers") or graph.layer_ids()
+    by_id = {l["id"]: l for l in graph.layers}
     heads = []
-    for col, layer in enumerate(graph.layers):
+    for col, layer in enumerate(by_id[lid] for lid in drawn):
         x = MARGIN_X + col * COL_PITCH + NODE_W / 2
         hue = LAYER_HUE.get(layer["id"], 220)
         heads.append(
             f'<text class="g-layer" x="{x:.1f}" y="24" text-anchor="middle" '
-            f'fill="hsl({hue} 70% {lum}%)">{_esc(layer["label"])}</text>'
+            f'fill="hsl({hue} 70% {lum})">{_esc(layer["label"])}</text>'
         )
         if layer.get("note"):
             heads.append(
@@ -203,6 +222,8 @@ def render_svg(graph: Graph, laid: dict, standalone: bool = False, theme: str = 
     # 边(先画,压在节点下面)
     edge_els = []
     for i, edge in enumerate(graph.edges):
+        if edge["from"] not in pos or edge["to"] not in pos:
+            continue          # 一端被抽去做浮层了(指标的连线由回溯面板负责讲)
         src, dst = pos[edge["from"]], pos[edge["to"]]
         style = EDGE_STYLE.get(edge.get("kind", "computes"), EDGE_STYLE["computes"])
         hue = LAYER_HUE.get(graph.nodes[edge["from"]]["layer"], 220)
@@ -210,25 +231,27 @@ def render_svg(graph: Graph, laid: dict, standalone: bool = False, theme: str = 
         edge_els.append(
             f'<path class="g-edge" id="e{i}" data-from="{_esc(edge["from"])}" '
             f'data-to="{_esc(edge["to"])}" data-kind="{_esc(edge.get("kind", "computes"))}" '
-            f'd="{_edge_path(src, dst)}" fill="none" stroke="hsl({hue} 70% {lum}%)" '
+            f'd="{_edge_path(src, dst)}" fill="none" stroke="hsl({hue} 70% {lum})" '
             f'stroke-width="{style["width"]}" stroke-opacity="{style["opacity"]}"{dash}/>'
         )
 
     # 节点
     node_els = []
     for node_id in graph.order:
+        if node_id not in pos:
+            continue
         node = graph.nodes[node_id]
         x, y = pos[node_id]
         hue = LAYER_HUE.get(node["layer"], 220)
         emph = bool(node.get("emphasis"))
         guards = graph.guards_of(node_id)
-        fill_a = ".18" if emph else ".09"
+        node_fill_a = fill_a[emph]
         stroke_a = ".70" if emph else ".38"
         label = _esc(node.get("label", node_id))
         # 有防线的节点右上角一个点;详情在回溯面板里列出
         dot = (
             f'<circle class="g-guarddot" cx="{x + NODE_W - 9:.1f}" cy="{y + 9:.1f}" r="3" '
-            f'fill="hsl(190 90% 60%)"/>'
+            f'fill="{guard}"/>'
             if guards
             else ""
         )
@@ -236,7 +259,8 @@ def render_svg(graph: Graph, laid: dict, standalone: bool = False, theme: str = 
             f'<g class="g-node{" emph" if emph else ""}" data-node="{_esc(node_id)}" '
             f'data-layer="{_esc(node["layer"])}" tabindex="0" role="button">'
             f'<rect x="{x:.1f}" y="{y:.1f}" width="{NODE_W}" height="{NODE_H}" rx="9" '
-            f'fill="hsl({hue} 70% 50% / {fill_a})" stroke="hsl({hue} 70% {lum}% / {stroke_a})"/>'
+            f'fill="hsl({hue} 70% {fill_lum} / {node_fill_a})" '
+            f'stroke="hsl({hue} 70% {lum} / {stroke_a})"/>'
             f'{dot}'
             f'<text x="{x + NODE_W / 2:.1f}" y="{y + NODE_H / 2 + 4:.1f}" text-anchor="middle" '
             f'fill="{ink}">{label}</text>'

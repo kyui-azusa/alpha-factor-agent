@@ -11,16 +11,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 @dataclass(frozen=True)
 class Config:
     freq: str = "D"
-    universe: str = "synthetic_a_share"
-    start_date: str = "2020-01-01"
+    universe: str = "a_share_all"
+    start_date: str = "2015-01-01"
     end_date: str = "2021-12-31"
-    train_end: str = "2020-12-31"
+    train_end: str = "2019-12-31"
     cost_bps: float = 10.0
     data_dir: Path = PROJECT_ROOT / "data"
     results_dir: Path = PROJECT_ROOT / "results"
     llm_backend: str = os.getenv("ALPHA_AGENT_LLM_BACKEND", "mock")
     llm_model: str = os.getenv("ALPHA_AGENT_LLM_MODEL", "gpt-4.1-mini")
     llm_max_tokens: int = int(os.getenv("ALPHA_AGENT_LLM_MAX_TOKENS", "800"))
+    llm_temperature: float = float(os.getenv("ALPHA_AGENT_LLM_TEMPERATURE", "0.2"))
 
     @property
     def raw_dir(self) -> Path:

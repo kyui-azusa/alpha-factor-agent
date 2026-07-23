@@ -34,6 +34,18 @@ BASELINE_FACTORS: list[FactorExpr] = [
         economic_rationale="成交额占市值较低可近似表示交易拥挤度较低或流动性风险补偿。",
         fields_used=["amount", "mktcap"],
     ),
+    FactorExpr(
+        name="baseline_operating_cash_flow_yield",
+        expression="rank(safe_div(operating_cash_flow, mktcap))",
+        economic_rationale="经营现金流相对市值更高的公司,可能具备更强现金回报和估值安全边际。",
+        fields_used=["operating_cash_flow", "mktcap"],
+    ),
+    FactorExpr(
+        name="baseline_deleveraged_roe",
+        expression="rank(safe_div(net_income, total_equity)) - rank(1 - safe_div(total_equity, total_assets))",
+        economic_rationale="在 ROE 中惩罚高杠杆贡献,更接近真实盈利能力而非资本结构放大后的收益。",
+        fields_used=["net_income", "total_equity", "total_assets"],
+    ),
 ]
 
 
