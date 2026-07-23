@@ -24,6 +24,11 @@ const router = createRouter({
       name: 'factors',
       component: () => import('../views/FactorView.vue'),
     },
+    {
+      path: '/workbench',
+      name: 'workbench',
+      component: () => import('../views/WorkbenchView.vue'),
+    },
   ],
 })
 

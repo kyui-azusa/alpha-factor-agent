@@ -3,6 +3,7 @@ import {
   BarChart3,
   CandlestickChart,
   FlaskConical,
+  GitBranch,
   Layers3,
   Menu,
   Moon,
@@ -22,6 +23,7 @@ const theme = ref<Theme>(document.documentElement.dataset.theme === 'light' ? 'l
 const themeLabel = computed(() => (theme.value === 'light' ? '切换到深色' : '切换到浅色'))
 const isChat = computed(() => route.name === 'chat')
 const pageTitle = computed(() => {
+  if (route.name === 'workbench') return '因子生成工作台'
   if (route.name === 'research') return '事件研究'
   if (route.name === 'portfolio') return '组合研究'
   if (route.name === 'factors') return '因子结果'
@@ -109,6 +111,9 @@ onBeforeUnmount(() => {
         <span class="nav-label">研究工具</span>
         <RouterLink to="/research" @click="closeSidebar">
           <CandlestickChart :size="17" /><span>事件研究</span>
+        </RouterLink>
+        <RouterLink to="/workbench" @click="closeSidebar">
+          <GitBranch :size="17" /><span>因子生成</span>
         </RouterLink>
         <RouterLink to="/portfolio" @click="closeSidebar">
           <Layers3 :size="17" /><span>组合研究</span>

@@ -64,6 +64,19 @@ Priority values:
 
 ## Current Workstreams
 
+### P0 Research Workbench
+
+These turn the static research panel from a result browser into an honest, inspectable factor-generation surface.
+
+| Issues | Workstream | Why it matters | Suggested first step |
+|---|---|---|---|
+| #81, #82 | Chat research clues and explainable candidate workbench | Users need to see how a natural-language clue becomes a bounded candidate pool, including rejected and unavailable candidates. | Add a deterministic `ResearchRequest` preview and a static workbench with materials, generation controls, provenance, validation, and evidence states. |
+| #70, #78 | Research contract and fail-closed preflight | The workbench must not imply that an incomplete or unsupported request can run. | Model the contract and blockers in the static panel; keep real confirmation, persistence, and run enforcement in the runtime workstream. |
+
+Scope note: the current panel remains an offline static demonstration under ADR-0023. It may preview the
+`ResearchRequest` and preflight schemas, but it must not claim that runtime APIs, durable state, or live backtests
+exist. Issues #70 and #78 stay open until those enforcement paths are implemented and tested outside the panel.
+
 ### P0 Trust And Correctness
 
 These protect the main claim that the system is deterministic, point-in-time, and auditable.
@@ -151,6 +164,8 @@ Keep this table short and current. One row can cover a grouped workstream when t
 | #83 | Traceable generation cache | P1 | done | Codex run-state-cache task | 2026-07-23 19:08 +0800 | 2026-07-23 20:08 +0800 | Added atomic content-addressed generation records and stable candidate lineage. Verified: focused pytest 21 passed; full pytest 94 passed; compileall and diff check passed. |
 | #79 | Persistent run state and recovery core | P0 | released | Codex run-state-cache task | 2026-07-23 19:08 +0800 | 2026-07-23 20:08 +0800 | Backend core completed: SQLite state/stage/candidate history, cancel, partial completion, stable errors, restart persistence, idempotent retry, and child runs for changed inputs. Issue remains open for runtime service and panel history/control integration; released after backend PR so that UI/API work can proceed on the correct branch. |
 | #70, #78 | Research request contract and deterministic preflight | P0 | done | Codex research-contract-preflight task | 2026-07-23 18:44 +0800 | 2026-07-23 19:44 +0800 | Implemented immutable confirmed contracts, fail-closed capability evidence, versioned preflight reports, integrity-checked execution permits, and Agent generation gating. Verified: `pytest tests/test_research_contract.py tests/test_research_preflight.py tests/test_agents.py tests/test_pipeline.py -q` (36 passed); `pytest -q` (87 passed); `python -m compileall -q src tests`; `git diff --check`. |
+| #81 | Chat research clues | P0 | claimed | Codex factor-workbench task | 2026-07-23 18:35 +0800 | 2026-07-23 19:35 +0800 | The static clue-to-`ResearchRequest` route is implemented on `codex/factor-workbench`; genuine multi-turn clarification and runtime candidate generation remain open. Verified in browser at desktop and 390 x 844 mobile viewports. |
+| #82 | Explainable candidate workbench | P0 | done | Codex factor-workbench task | 2026-07-23 15:31 +0800 | 2026-07-23 16:31 +0800 | Implemented an offline deterministic workbench with materials, controls, provenance, rejection reasons, availability states, and static evidence. Verified: `pytest tests/test_panel_export.py -q`; `cd panel && pnpm type-check`; `pnpm exec eslint . --cache`; `pnpm build-only`; browser desktop/mobile checks. #70/#78 remain open for runtime enforcement. |
 | #7, #15 | PIT field availability and look-ahead proof | P0 | done | Codex current task | 2026-07-22 16:08 +0800 | 2026-07-22 17:08 +0800 | Implemented deterministic field availability metadata, validate/backtest enforcement, PIT-safe mktcap provenance, docs/paper limitations, and tests. Verified: `pytest tests/test_align.py tests/test_backtest.py tests/test_agents.py tests/test_factors.py -q`; `pytest -q`. |
 | #10 | Expression engine whitelist and complexity limits | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic expression safety checks and focused tests. Closed upstream with completion note on 2026-07-22. |
 | #8 | Synthetic-vs-real report labeling | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added visible `data_mode`/source metadata in reports and tests. Closed upstream with completion note on 2026-07-22. |

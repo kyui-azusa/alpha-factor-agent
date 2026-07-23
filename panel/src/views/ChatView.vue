@@ -12,6 +12,7 @@ import { useRouter } from 'vue-router'
 
 import { useMarketStore } from '@/stores/market'
 import { usePortfolioStore } from '@/stores/portfolio'
+import { DEFAULT_FACTOR_CLUE } from '@/research/workbench'
 
 interface AgentReply {
   title: string
@@ -32,7 +33,7 @@ const reply = ref<AgentReply | null>(null)
 const conversation = ref<HTMLElement | null>(null)
 let replyTimer: number | undefined
 
-const examplePrompt = '看看格力电器预告后的走势'
+const examplePrompt = DEFAULT_FACTOR_CLUE
 
 onMounted(() => market.initialize())
 onBeforeUnmount(() => window.clearTimeout(replyTimer))
@@ -47,6 +48,15 @@ function resolveReply(text: string): AgentReply {
       tool: '组合构建',
       route: '/portfolio',
       routeLabel: '查看组合',
+    }
+  }
+  if (/生成|构造|线索|语气|文本/.test(text) && /因子|Alpha|alpha/.test(text)) {
+    return {
+      title: '研究线索已整理为任务合同草稿',
+      body: '我会先展示经济现象、可观测代理、A 股映射和能力预检；缺少字段或 PIT 证明的候选将被阻断并保留原因。',
+      tool: '研究合同与候选池',
+      route: `/workbench?clue=${encodeURIComponent(text)}`,
+      routeLabel: '审阅生成工作台',
     }
   }
   if (text.includes('因子') || text.includes('动量')) {
@@ -152,7 +162,7 @@ function resetConversation() {
 
       <div v-if="!submittedPrompt" class="suggestion-row" aria-label="示例任务">
         <button type="button" @click="submit(examplePrompt)">
-          <span>试试</span>{{ examplePrompt }}
+        <span>示例研究线索</span>{{ examplePrompt }}
         </button>
       </div>
 
