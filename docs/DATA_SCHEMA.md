@@ -83,3 +83,17 @@
 | `universe` | 股票池字段来自历史股票池或成分权重,使用同一交易日或有效日,不能用当前成分股回填历史。 |
 
 需要特别区分代码可证明的边界与外部假设:本项目能测试 `pit_merge` 不会把 `ann_date > date` 的记录并入 T 日面板,并能拒绝绕过元数据的因子/回测路径;但原始库中 `ann_date` 是否真实、财务内容是否混入事后修订、供应商复权字段是否按研究口径正确构造,仍属于数据供应商和抽取流程假设。若从持久化文件重新加载后丢失 `attrs`,应重新构建或补齐元数据,而不是默认放行 PIT 敏感字段。
+
+## 研究运行状态
+
+`RunStore` 使用 SQLite 持久化研究任务。`runs` 保存 `run_id`、`request_id`、父运行、输入指纹、当前状态/阶段、累计产物、稳定错误码、重试次数和完整性标记;`stage_attempts` 保存每个阶段的输入/输出产物与起止时间;`candidates` 保存单候选状态;`retry_requests` 保存幂等重试键。
+
+正常状态按 `draft -> preflight_running -> awaiting_confirmation -> queued -> generating -> validating -> backtesting -> summarizing` 推进,回测阶段可进入下一轮生成或汇总。终态为 `completed`、`partial_completed`、`failed` 或 `canceled`。`partial_completed` 是可查询终态,但 `incomplete` 必须保持为真。基础数据或 PIT 错误应阻断整个运行;单候选失败可以与其他成功候选共同形成部分完成。
+
+相同输入的失败重试复用原 `run_id`,只增加失败阶段的 attempt;相同幂等键不会重复创建工作。输入指纹变化时必须创建带 `parent_run_id` 的子运行,从 `draft` 重新开始,不得覆盖原运行或复用旧产物。
+
+## LLM 生成记录
+
+每个 LLM 内容寻址缓存由同名 `<cache_key>.txt` 响应和 `<cache_key>.json` 生成记录组成。JSON 至少包含 `generation_record_id`、`prompt_hash`、`output_hash`、backend、model、`max_tokens`、temperature、UTC 创建时间和本次是否命中缓存。写入使用同目录临时文件后原子替换。
+
+`generation_record_id` 由 system、prompt 和完整生成参数的缓存键派生,用于复盘同一生成输入,不代表外部模型天然确定。候选 metadata 记录该生成 ID,并由生成 ID、候选顺序、名称和表达式派生稳定 `candidate_id`,从而能回溯具体生成记录。

@@ -1,6 +1,6 @@
 # Local Development Plan
 
-Updated: 2026-07-23 19:06 +0800
+Updated: 2026-07-23 19:28 +0800
 
 This file is the local planning board for turning feedback issues into implementation work. GitHub Issues remain the raw intake source; this document is the working summary used before starting code changes, so different Codex runs or teammates do not accidentally fix the same ticket twice.
 
@@ -115,6 +115,8 @@ Keep this table short and current. One row can cover a grouped workstream when t
 
 | Issues | Workstream | Priority | Status | Owner | Claimed at | Expires at | Notes |
 |---|---|---:|---|---|---|---|---|
+| #83 | Traceable generation cache | P1 | done | Codex run-state-cache task | 2026-07-23 19:08 +0800 | 2026-07-23 20:08 +0800 | Added atomic content-addressed generation records and stable candidate lineage. Verified: focused pytest 21 passed; full pytest 94 passed; compileall and diff check passed. |
+| #79 | Persistent run state and recovery core | P0 | released | Codex run-state-cache task | 2026-07-23 19:08 +0800 | 2026-07-23 20:08 +0800 | Backend core completed: SQLite state/stage/candidate history, cancel, partial completion, stable errors, restart persistence, idempotent retry, and child runs for changed inputs. Issue remains open for runtime service and panel history/control integration; released after backend PR so that UI/API work can proceed on the correct branch. |
 | #70, #78 | Research request contract and deterministic preflight | P0 | done | Codex research-contract-preflight task | 2026-07-23 18:44 +0800 | 2026-07-23 19:44 +0800 | Implemented immutable confirmed contracts, fail-closed capability evidence, versioned preflight reports, integrity-checked execution permits, and Agent generation gating. Verified: `pytest tests/test_research_contract.py tests/test_research_preflight.py tests/test_agents.py tests/test_pipeline.py -q` (36 passed); `pytest -q` (87 passed); `python -m compileall -q src tests`; `git diff --check`. |
 | #7, #15 | PIT field availability and look-ahead proof | P0 | done | Codex current task | 2026-07-22 16:08 +0800 | 2026-07-22 17:08 +0800 | Implemented deterministic field availability metadata, validate/backtest enforcement, PIT-safe mktcap provenance, docs/paper limitations, and tests. Verified: `pytest tests/test_align.py tests/test_backtest.py tests/test_agents.py tests/test_factors.py -q`; `pytest -q`. |
 | #10 | Expression engine whitelist and complexity limits | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic expression safety checks and focused tests. Closed upstream with completion note on 2026-07-22. |

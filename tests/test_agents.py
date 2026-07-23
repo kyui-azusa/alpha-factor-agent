@@ -124,6 +124,24 @@ def test_propose_factors_records_generation_params(tmp_path):
     assert "source_seed_factors" in factors[0].metadata
     assert "synthesis_method" in factors[0].metadata
     assert "lineage" in factors[0].metadata
+    generation = factors[0].metadata["generation"]
+    assert generation["generation_record_id"].startswith("gen_")
+    assert generation["candidate_id"].startswith("cand_")
+    assert generation["record"]["output_hash"]
+
+
+def test_propose_factors_reuses_stable_generation_and_candidate_ids(tmp_path):
+    cfg = Config(data_dir=tmp_path / "data", results_dir=tmp_path / "results", llm_backend="mock")
+    cfg.ensure_dirs()
+
+    first = propose_factors([], {"field_catalog": []}, n=1, client=LLMClient(cfg))[0]
+    second = propose_factors([], {"field_catalog": []}, n=1, client=LLMClient(cfg))[0]
+
+    first_generation = first.metadata["generation"]
+    second_generation = second.metadata["generation"]
+    assert first_generation["generation_record_id"] == second_generation["generation_record_id"]
+    assert first_generation["candidate_id"] == second_generation["candidate_id"]
+    assert second_generation["record"]["cache_hit"] is True
 
 
 def test_feedback_summary_only_exposes_train_segment():
