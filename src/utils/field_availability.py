@@ -38,8 +38,11 @@ def fundamental_field_metadata(field: str) -> dict[str, Any]:
     return {
         "field": field,
         "source": "fundamentals",
-        "available_date": "ann_date",
-        "rule": "latest record with ann_date <= trading date selected by pit_merge",
+        "available_date": "information_available_at",
+        "rule": (
+            "latest record with information_available_at <= signal_time selected by pit_merge; "
+            "date-only announcements become available on the next trading day"
+        ),
         "pit_protected": True,
     }
 
@@ -104,8 +107,10 @@ def validate_field_availability(fields: set[str], panel: pd.DataFrame) -> tuple[
         field_meta = metadata[field]
         source = field_meta.get("source")
         if source == "fundamentals":
-            if field_meta.get("available_date") != "ann_date" or not field_meta.get("pit_protected"):
-                return False, f"fundamental field {field} is not proven point-in-time by ann_date"
+            if field_meta.get("available_date") != "information_available_at" or not field_meta.get(
+                "pit_protected"
+            ):
+                return False, f"fundamental field {field} is not proven point-in-time by availability timestamp"
         elif source == "derived":
             inputs = set(field_meta.get("inputs", []))
             ok, reason = validate_field_availability(inputs, panel)
