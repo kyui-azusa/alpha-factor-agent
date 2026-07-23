@@ -26,7 +26,10 @@ SHOWCASE_DIR = ROOT / "content" / "showcase"
 CSS_FILE = ROOT / "static" / "style.css"
 DIST = ROOT / "dist"
 
-# Intake Fields(CONTEXT.md):提交人 / 标题 / 描述 / 附件 / 相关想法卡片 / 类型 / 优先级
+# Intake Fields(CONTEXT.md):提交人 / 标题 / 描述 / 附件 / 关联工单 / 类型 / 优先级
+# 关联工单只是「指着老工单说话」:写进正文由 GitHub 自动交叉引用,不做站内回复层级。
+MAX_RELATED_ISSUES = 5
+REVIEW_LABEL = "待审核"      # 与 intake_service.REVIEW_LABEL 同步
 ISSUE_TYPES = ["功能", "缺陷", "问题", "建议"]
 PRIORITIES = ["低", "中", "高"]
 
@@ -44,7 +47,9 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   </defs>
   <rect x="8" y="8" width="48" height="48" rx="16" fill="url(#g)" filter="url(#s)"/>
 </svg>"""
-FAVICON_HREF = "data:image/svg+xml," + urllib.parse.quote(FAVICON_SVG, safe="/:;=?&,%#")
+# `#` 必须编码成 %23:data URI 写在 href 属性里,第一个裸 # 会被当成 fragment 起点,
+# URL 从那里截断 —— 色值 #7c5cff 和 url(#g) 都带 #,不编码的话 SVG 只剩半句,favicon 直接不显示。
+FAVICON_HREF = "data:image/svg+xml," + urllib.parse.quote(FAVICON_SVG, safe="/:;=?&,%")
 
 
 def parse_packet(path: Path) -> dict:
@@ -200,10 +205,10 @@ def render_showcase_card(item: dict) -> str:
   </header>
   <h3>{_esc(item.get('title', '(无标题)'))}</h3>
   <p class="sc-summary">{_esc(item.get('summary', ''))}</p>
-  {note_block}
-  {sections_block}
-  {body_block}
-  {links_block}
+{note_block}
+{sections_block}
+{body_block}
+{links_block}
 </article>"""
 
 
@@ -293,6 +298,7 @@ def render_graph_section() -> tuple[str, str]:
 
 def render_form() -> str:
     type_opts = "".join(f'<option value="{_esc(t)}">{_esc(t)}</option>' for t in ISSUE_TYPES)
+    filter_type_opts = type_opts
     prio_opts = "".join(
         f'<option value="{_esc(v)}"{" selected" if v == "中" else ""}>{_esc(v)}</option>'
         for v in PRIORITIES
@@ -323,8 +329,9 @@ def render_form() -> str:
       <label class="field">优先级
         <select name="priority">{prio_opts}</select>
       </label>
-      <label class="field">相关想法卡片
-        <input name="related_packet" maxlength="80" placeholder="卡片 id(可选)">
+      <label class="field">关联工单
+        <input name="related_issues" data-ref-input maxlength="80" inputmode="numeric" placeholder="工单号,如 #12(可选)">
+        <span class="hint" data-ref-hint>最多 {MAX_RELATED_ISSUES} 条;也可在下方「历史工单」点「引用」</span>
       </label>
     </div>
     <div class="grid">
@@ -350,6 +357,13 @@ def render_form() -> str:
         <button type="button" class="icon-btn danger" data-screenshot-remove aria-label="删除截图" title="删除截图">×</button>
       </div>
     </div>
+    <label class="check">
+      <input type="checkbox" name="needs_review" value="1">
+      <span>
+        <strong>需要他人审核</strong>
+        <em>内容还没验证过(比如和 AI 讨论出来的结论),希望别人复核后再采信 —— 会打上「{REVIEW_LABEL}」标签</em>
+      </span>
+    </label>
     <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
     <div class="submit-row">
       <button type="submit" class="btn-primary">提交工单</button>
@@ -364,9 +378,28 @@ def render_form() -> str:
       </div>
       <button type="button" class="icon-btn" data-issues-refresh aria-label="刷新历史工单" title="刷新历史工单">↻</button>
     </div>
+    <div class="filters" hidden data-issue-filters>
+      <select data-filter-state aria-label="按状态筛选">
+        <option value="">全部状态</option>
+        <option value="open">处理中</option>
+        <option value="closed">已关闭</option>
+      </select>
+      <select data-filter-type aria-label="按类型筛选">
+        <option value="">全部类型</option>
+        {filter_type_opts}
+      </select>
+      <select data-filter-submitter aria-label="按提出者筛选">
+        <option value="">全部提出者</option>
+      </select>
+      <label class="toggle"><input type="checkbox" data-filter-review>只看{REVIEW_LABEL}</label>
+      <label class="toggle"><input type="checkbox" data-collapse-replies>收起回复</label>
+      <button type="button" class="link-btn" data-filter-reset hidden>清除筛选</button>
+    </div>
     <div class="issue-list" data-issue-list>
       <p class="empty">正在读取...</p>
     </div>
+    <p class="empty" data-issue-empty hidden>没有符合筛选条件的工单。</p>
+    <button type="button" class="more-btn" data-issues-more hidden>展开全部</button>
   </div>
 </section>"""
 
@@ -758,6 +791,23 @@ if (form) {
   var screenshotPick = form.querySelector('[data-screenshot-pick]');
   var issueList = document.querySelector('[data-issue-list]');
   var issuesRefresh = document.querySelector('[data-issues-refresh]');
+  var issuesMore = document.querySelector('[data-issues-more]');
+  var issueEmpty = document.querySelector('[data-issue-empty]');
+  var issueFilters = document.querySelector('[data-issue-filters]');
+  var filterState = document.querySelector('[data-filter-state]');
+  var filterType = document.querySelector('[data-filter-type]');
+  var filterSubmitter = document.querySelector('[data-filter-submitter]');
+  var filterReview = document.querySelector('[data-filter-review]');
+  var filterReset = document.querySelector('[data-filter-reset]');
+  var collapseReplies = document.querySelector('[data-collapse-replies]');
+  var ISSUE_TYPE_NAMES = ['功能', '缺陷', '问题', '建议'];   // 与 build.py 的 ISSUE_TYPES 同步
+  var REVIEW_LABEL = '待审核';                              // 与 intake_service.REVIEW_LABEL 同步
+  var ISSUE_PREVIEW = 8;      // 全量工单一次铺开会把页面撑得很长,先露最近几条
+  var issuesExpanded = false;
+  var refInput = form.querySelector('[data-ref-input]');
+  var refHint = form.querySelector('[data-ref-hint]');
+  var refHintText = refHint ? refHint.textContent : '';
+  var REF_MAX = 5;
 
   function escapeHtml(text) {
     return String(text == null ? '' : text).replace(/[&<>"']/g, function (ch) {
@@ -774,6 +824,66 @@ if (form) {
     }
   }
 
+  // 关联工单:新工单可以指着老工单说话。只往输入框里塞号码,不做站内回复层级 ——
+  // 正文里的 #12 由 GitHub 自动交叉引用。
+  function parseRefs(text) {
+    var out = [];
+    var found = String(text == null ? '' : text).match(/\\d{1,7}/g) || [];
+    for (var i = 0; i < found.length; i += 1) {
+      var n = parseInt(found[i], 10);
+      if (n > 0 && out.indexOf(n) < 0) out.push(n);
+    }
+    return out.slice(0, REF_MAX);
+  }
+
+  function currentRefs() { return refInput ? parseRefs(refInput.value) : []; }
+
+  function setRefs(list) {
+    if (!refInput) return;
+    refInput.value = list.map(function (n) { return '#' + n; }).join(' ');
+    syncCiteButtons();
+  }
+
+  function refMessage(text, isError) {
+    if (!refHint) return;
+    refHint.textContent = text || refHintText;
+    refHint.classList.toggle('err', !!isError);
+    refHint.classList.toggle('ok', !isError && !!text);
+  }
+
+  function syncCiteButtons() {
+    if (!issueList) return;
+    var refs = currentRefs();
+    var buttons = issueList.querySelectorAll('[data-cite]');
+    for (var i = 0; i < buttons.length; i += 1) {
+      var cited = refs.indexOf(parseInt(buttons[i].getAttribute('data-cite'), 10)) >= 0;
+      buttons[i].classList.toggle('done', cited);
+      buttons[i].textContent = cited ? '已引用' : '引用';
+    }
+  }
+
+  function citeIssue(number) {
+    if (!refInput || !(number > 0)) return;
+    var refs = currentRefs();
+    var at = refs.indexOf(number);
+    if (at >= 0) {                       // 再点一次 = 取消引用,不用回表单里删字
+      refs.splice(at, 1);
+      setRefs(refs);
+      refMessage('已取消引用 #' + number, false);
+      return;
+    }
+    if (refs.length >= REF_MAX) {
+      refMessage('最多关联 ' + REF_MAX + ' 条工单', true);
+      return;
+    }
+    refs.push(number);
+    setRefs(refs);
+    refMessage('已关联 #' + number, false);
+    refInput.classList.add('flash');
+    setTimeout(function () { refInput.classList.remove('flash'); }, 900);
+    if (refInput.scrollIntoView) refInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
   function renderIssues(items) {
     if (!issueList) return;
     if (!items || !items.length) {
@@ -782,7 +892,14 @@ if (form) {
     }
     issueList.innerHTML = items.map(function (item) {
       var labels = (item.labels || []).filter(function (name) { return name !== 'intake'; })
-        .map(function (name) { return '<span class="mini-label">' + escapeHtml(name) + '</span>'; }).join('');
+        .map(function (name) {
+          var cls = name === REVIEW_LABEL ? ' review' : '';
+          return '<span class="mini-label' + cls + '">' + escapeHtml(name) + '</span>';
+        }).join('');
+      // 标签可能被人在 GitHub 上摘掉,正文里的声明还在 —— 那也要显示出来
+      if (item.needs_review && (item.labels || []).indexOf(REVIEW_LABEL) < 0) {
+        labels += '<span class="mini-label review">' + REVIEW_LABEL + '</span>';
+      }
       if (item.milestone) labels += '<span class="mini-label milestone">' + escapeHtml(item.milestone) + '</span>';
       // 回复是这块最有价值的内容,给它独立的答复块而不是挤在一行里截断
       var reply = '';
@@ -796,17 +913,87 @@ if (form) {
           + '</a>';
       }
       var state = item.state === 'closed' ? '已关闭' : '处理中';
-      return '<div class="issue-item' + (reply ? ' has-reply' : '') + '">'
+      // 筛选要用的三个维度直接挂在元素上:列表就是数据源,不再另存一份
+      return '<div class="issue-item' + (reply ? ' has-reply' : '') + (item.needs_review ? ' needs-review' : '') + '"'
+        + ' data-state="' + escapeHtml(item.state) + '"'
+        + ' data-type="' + escapeHtml(issueType(item)) + '"'
+        + ' data-submitter="' + escapeHtml(item.submitter || '') + '"'
+        + ' data-review="' + (item.needs_review ? '1' : '') + '">'
         + '<span class="issue-no">#' + escapeHtml(item.number) + '</span>'
         + '<span class="issue-main"><strong><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.title) + '</a></strong><span class="issue-tags">' + labels + '</span>' + reply + '</span>'
-        + '<span class="issue-side"><em class="state ' + escapeHtml(item.state) + '">' + state + '</em><time>' + escapeHtml(formatDate(item.created_at)) + '</time></span>'
+        + '<span class="issue-side"><em class="state ' + escapeHtml(item.state) + '">' + state + '</em><time>' + escapeHtml(formatDate(item.created_at)) + '</time>'
+        + '<button type="button" class="cite-btn" data-cite="' + escapeHtml(item.number) + '" title="在新工单里引用 #' + escapeHtml(item.number) + '">引用</button></span>'
         + '</div>';
     }).join('');
+    fillSubmitters(items);
+    if (issueFilters) issueFilters.hidden = false;
+    applyIssueView();
+    syncCiteButtons();
+  }
+
+  // 类型取四选一那枚标签(其余是 P:x / 待审核 / milestone,不是类型)
+  function issueType(item) {
+    var names = item.labels || [];
+    for (var i = 0; i < names.length; i += 1) {
+      if (ISSUE_TYPE_NAMES.indexOf(names[i]) >= 0) return names[i];
+    }
+    return '';
+  }
+
+  function fillSubmitters(items) {
+    if (!filterSubmitter) return;
+    var kept = filterSubmitter.value;
+    var names = [];
+    for (var i = 0; i < items.length; i += 1) {
+      var name = items[i].submitter;
+      if (name && names.indexOf(name) < 0) names.push(name);
+    }
+    names.sort();
+    filterSubmitter.innerHTML = '<option value="">全部提出者</option>'
+      + names.map(function (n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
+    if (names.indexOf(kept) >= 0) filterSubmitter.value = kept;   // 刷新不该把已选的筛选条件弄丢
+  }
+
+  function filterValues() {
+    return {
+      state: filterState ? filterState.value : '',
+      type: filterType ? filterType.value : '',
+      submitter: filterSubmitter ? filterSubmitter.value : '',
+      review: !!(filterReview && filterReview.checked)
+    };
+  }
+
+  // 筛选先跑,折叠再跑:「展开全部 N 条」里的 N 说的是筛完还剩几条
+  function applyIssueView() {
+    if (!issueList) return;
+    var f = filterValues();
+    var active = !!(f.state || f.type || f.submitter || f.review);
+    var items = issueList.querySelectorAll('.issue-item');
+    var matched = 0;
+    for (var i = 0; i < items.length; i += 1) {
+      var el = items[i];
+      var ok = (!f.state || el.getAttribute('data-state') === f.state)
+        && (!f.type || el.getAttribute('data-type') === f.type)
+        && (!f.submitter || el.getAttribute('data-submitter') === f.submitter)
+        && (!f.review || el.getAttribute('data-review') === '1');
+      if (!ok) { el.hidden = true; continue; }
+      matched += 1;
+      el.hidden = !issuesExpanded && matched > ISSUE_PREVIEW;
+    }
+    if (issueEmpty) issueEmpty.hidden = matched > 0 || !items.length;
+    if (filterReset) filterReset.hidden = !active;
+    if (issuesMore) {
+      issuesMore.hidden = matched <= ISSUE_PREVIEW;
+      issuesMore.textContent = issuesExpanded ? '收起' : '展开全部 ' + matched + ' 条';
+    }
   }
 
   function loadIssues() {
     if (!issueList) return;
     issueList.innerHTML = '<p class="empty">正在读取...</p>';
+    if (issuesMore) issuesMore.hidden = true;
+    if (issueEmpty) issueEmpty.hidden = true;
+    if (issueFilters) issueFilters.hidden = true;
     fetch('/api/intake/issues')
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
@@ -886,6 +1073,53 @@ if (form) {
   if (screenshotRemove) screenshotRemove.addEventListener('click', clearScreenshot);
   if (issuesRefresh) issuesRefresh.addEventListener('click', loadIssues);
 
+  [filterState, filterType, filterSubmitter, filterReview].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('change', function () {
+      issuesExpanded = false;      // 换了筛选条件就回到「先看前几条」
+      applyIssueView();
+    });
+  });
+
+  if (filterReset) {
+    filterReset.addEventListener('click', function () {
+      if (filterState) filterState.value = '';
+      if (filterType) filterType.value = '';
+      if (filterSubmitter) filterSubmitter.value = '';
+      if (filterReview) filterReview.checked = false;
+      issuesExpanded = false;
+      applyIssueView();
+    });
+  }
+
+  if (collapseReplies && issueList) {
+    collapseReplies.addEventListener('change', function () {
+      issueList.classList.toggle('replies-off', collapseReplies.checked);
+    });
+  }
+
+  if (issuesMore) {
+    issuesMore.addEventListener('click', function () {
+      issuesExpanded = !issuesExpanded;
+      applyIssueView();
+      if (!issuesExpanded && issueList.scrollIntoView) issueList.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }
+
+  if (issueList) {
+    issueList.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-cite]') : null;
+      if (!btn) return;
+      e.preventDefault();
+      citeIssue(parseInt(btn.getAttribute('data-cite'), 10));
+    });
+  }
+
+  if (refInput) {
+    refInput.addEventListener('input', function () { refMessage('', false); syncCiteButtons(); });
+    refInput.addEventListener('blur', function () { setRefs(currentRefs()); });
+  }
+
   if (screenshotZone) {
     screenshotZone.addEventListener('click', function (e) {
       if (e.target === screenshotPick) return;
@@ -939,6 +1173,7 @@ if (form) {
             : '已收到 ✔ 谢谢!(后台稍后同步)';
           form.reset();
           clearScreenshot();
+          refMessage('', false);
           loadIssues();
         } else {
           out.className = 'result err'; out.textContent = '提交失败:' + (res.d.error || '请稍后重试');
