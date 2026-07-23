@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -28,7 +30,25 @@ def _stamp_generation_metadata(factor: FactorExpr, proposal_rank: int, client: A
     generation = metadata.setdefault("generation", {})
     generation["params"] = _generation_params(client)
     generation["proposal_rank"] = proposal_rank
-    generation.setdefault("generated_at_utc", datetime.now(UTC).isoformat())
+    record_getter = getattr(client, "generation_record", None)
+    record = record_getter() if callable(record_getter) else None
+    if record:
+        generation["record"] = record
+        generation["generation_record_id"] = record["generation_record_id"]
+        generation["generated_at_utc"] = record["created_at_utc"]
+        candidate_payload = json.dumps(
+            {
+                "generation_record_id": record["generation_record_id"],
+                "proposal_rank": proposal_rank,
+                "name": factor.name,
+                "expression": factor.expression,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+        generation["candidate_id"] = f"cand_{hashlib.sha256(candidate_payload.encode('utf-8')).hexdigest()[:24]}"
+    else:
+        generation.setdefault("generated_at_utc", datetime.now(UTC).isoformat())
 
     metadata.setdefault("source_seed_factors", metadata.get("seed_factors", []))
     metadata.setdefault("synthesis_method", metadata.get("generation_method", "unspecified"))
