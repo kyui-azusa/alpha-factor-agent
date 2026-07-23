@@ -35,8 +35,9 @@ Is the candidate semantically duplicated with an existing factor? Return JSON: {
 FEEDBACK_PROMPT = """Factor:
 {factor}
 
-Backtest summary:
+Allowlisted feedback record:
 {summary}
 
 Suggest one improved candidate factor as JSON with name, expression, economic_rationale, fields_used, metadata,
-or return null if no responsible improvement is justified. Only use training-segment information in the summary."""
+or return null if no responsible improvement is justified. Treat categorical development diagnostics only as research
+constraints. Never infer or request OOS metrics, hidden return values, final evidence, or threshold tuning from them."""
