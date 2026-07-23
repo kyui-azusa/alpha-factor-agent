@@ -48,6 +48,24 @@
 - 默认 `fundamental_availability_time_col = None`,所有记录走保守规则。仅出现一个 `ann_time` 列不会自动启用精确时点,必须由数据接入配置显式认证。
 - `ann_time` 非空但自然日与 `ann_date` 不一致、时点带未知时区或信号时点不在对应交易日时,合并直接失败。
 
+### 财务字段质量审计
+
+在将真实财务字段标记为可用于研究之前,调用 `audit_fundamental_quality` 对研究样本中的每个 `(date, code, field)` 做确定性审计。调用方必须为每个字段提供 `FieldQualityPolicy`,至少定义最大信息年龄 `max_age_days`;覆盖率阈值、允许的陈旧比例和陈旧值处置也按字段配置,不能用一个全局阈值掩盖字段差异。
+
+逐记录状态严格互斥:
+
+| status | meaning |
+|---|---|
+| `valid` | 信号时点已有非空值,且信息年龄未超过字段阈值。 |
+| `stale` | 信号时点已有值,但信息年龄超过字段阈值。 |
+| `never_available` | 该股票在数据源中从未出现该字段的非空值。 |
+| `not_yet_announced` | 非空值存在,但到当前信号时点尚不可用。 |
+| `business_excluded` | 按显式业务规则排除;必须同时给出具体 `business_exclusion_reason`。 |
+
+覆盖率分母 `eligible_count` 不含 `business_excluded`,但后者仍单独计数并保留原因。`coverage_ratio = (valid + stale) / eligible_count`,`usable_coverage_ratio = valid / eligible_count`;因此把陈旧值配置为 `exclude` 仍会降低可用覆盖率,不会让缺证据样本通过。`missing_ratio` 只统计 `never_available` 与 `not_yet_announced`,`stale_ratio` 单独报告。
+
+审计输出逐记录明细,以及按字段、日期和行业的覆盖率、新鲜度、最近可用时点、最近公告日/报告期和 lag 统计。`save_fundamental_quality_audit` 将结果保存为 `records.csv`、`fields.csv`、`dates.csv`、`industries.csv` 和 `audit.json`;稳定 `audit_id` 由规则版本、字段策略、明细与汇总共同计算。`preflight_evidence()` 可直接填入 `CapabilityEvidence`,低于可用覆盖率阈值时阻断 PF-013,超过陈旧比例时阻断 PF-014。缺少审计证据不能默认通过。
+
 ## `universe`
 
 历史股票池表。一行表示某只股票在某日属于研究股票池,用于防幸存者偏差。
