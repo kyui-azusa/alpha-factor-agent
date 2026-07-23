@@ -25,7 +25,7 @@ def _require_naive_timestamps(values: pd.Series, name: str) -> None:
         raise ValueError(f"{name} must use timezone-naive Asia/Shanghai local timestamps")
 
 
-def _signal_times(price_data: pd.DataFrame, signal_time: str | pd.Series) -> pd.Series:
+def resolve_signal_times(price_data: pd.DataFrame, signal_time: str | pd.Series) -> pd.Series:
     if isinstance(signal_time, str) and signal_time in price_data.columns:
         values = pd.to_datetime(price_data[signal_time], errors="raise")
     elif isinstance(signal_time, str):
@@ -72,7 +72,7 @@ def _publication_status(exact_time: pd.Timestamp, trading_dates: set[pd.Timestam
     return "exact_after_market"
 
 
-def _prepare_availability(
+def resolve_information_availability(
     fundamentals: pd.DataFrame,
     trading_dates: pd.DatetimeIndex,
     availability_time_col: str | None,
@@ -135,12 +135,12 @@ def pit_merge(
 
     price_data = _as_datetime(prices, ("date",)).reset_index(drop=True)
     _require_naive_timestamps(price_data["date"], "date")
-    price_data["_pit_signal_time"] = _signal_times(price_data, signal_time)
+    price_data["_pit_signal_time"] = resolve_signal_times(price_data, signal_time)
     price_data = price_data.sort_values(["code", "date"]).reset_index(drop=True)
     trading_dates = pd.DatetimeIndex(price_data["date"].dt.normalize().drop_duplicates().sort_values())
 
     fund_data = _as_datetime(fundamentals, ("ann_date", "report_period"))
-    fund_data = _prepare_availability(fund_data, trading_dates, availability_time_col)
+    fund_data = resolve_information_availability(fund_data, trading_dates, availability_time_col)
     fund_data = fund_data.sort_values(
         ["code", "information_available_at", "report_period", "ann_date"], na_position="last"
     )
