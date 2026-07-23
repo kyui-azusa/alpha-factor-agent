@@ -1,6 +1,6 @@
 # Local Development Plan
 
-Updated: 2026-07-22 23:16 +0800
+Updated: 2026-07-23 18:35 +0800
 
 This file is the local planning board for turning feedback issues into implementation work. GitHub Issues remain the raw intake source; this document is the working summary used before starting code changes, so different Codex runs or teammates do not accidentally fix the same ticket twice.
 
@@ -64,6 +64,19 @@ Priority values:
 
 ## Current Workstreams
 
+### P0 Research Workbench
+
+These turn the static research panel from a result browser into an honest, inspectable factor-generation surface.
+
+| Issues | Workstream | Why it matters | Suggested first step |
+|---|---|---|---|
+| #81, #82 | Chat research clues and explainable candidate workbench | Users need to see how a natural-language clue becomes a bounded candidate pool, including rejected and unavailable candidates. | Add a deterministic `ResearchRequest` preview and a static workbench with materials, generation controls, provenance, validation, and evidence states. |
+| #70, #78 | Research contract and fail-closed preflight | The workbench must not imply that an incomplete or unsupported request can run. | Model the contract and blockers in the static panel; keep real confirmation, persistence, and run enforcement in the runtime workstream. |
+
+Scope note: the current panel remains an offline static demonstration under ADR-0023. It may preview the
+`ResearchRequest` and preflight schemas, but it must not claim that runtime APIs, durable state, or live backtests
+exist. Issues #70 and #78 stay open until those enforcement paths are implemented and tested outside the panel.
+
 ### P0 Trust And Correctness
 
 These protect the main claim that the system is deterministic, point-in-time, and auditable.
@@ -115,6 +128,8 @@ Keep this table short and current. One row can cover a grouped workstream when t
 
 | Issues | Workstream | Priority | Status | Owner | Claimed at | Expires at | Notes |
 |---|---|---:|---|---|---|---|---|
+| #81 | Chat research clues | P0 | claimed | Codex factor-workbench task | 2026-07-23 18:35 +0800 | 2026-07-23 19:35 +0800 | The static clue-to-`ResearchRequest` route is implemented on `codex/factor-workbench`; genuine multi-turn clarification and runtime candidate generation remain open. Verified in browser at desktop and 390 x 844 mobile viewports. |
+| #82 | Explainable candidate workbench | P0 | done | Codex factor-workbench task | 2026-07-23 15:31 +0800 | 2026-07-23 16:31 +0800 | Implemented an offline deterministic workbench with materials, controls, provenance, rejection reasons, availability states, and static evidence. Verified: `pytest tests/test_panel_export.py -q`; `cd panel && pnpm type-check`; `pnpm exec eslint . --cache`; `pnpm build-only`; browser desktop/mobile checks. #70/#78 remain open for runtime enforcement. |
 | #7, #15 | PIT field availability and look-ahead proof | P0 | done | Codex current task | 2026-07-22 16:08 +0800 | 2026-07-22 17:08 +0800 | Implemented deterministic field availability metadata, validate/backtest enforcement, PIT-safe mktcap provenance, docs/paper limitations, and tests. Verified: `pytest tests/test_align.py tests/test_backtest.py tests/test_agents.py tests/test_factors.py -q`; `pytest -q`. |
 | #10 | Expression engine whitelist and complexity limits | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added deterministic expression safety checks and focused tests. Closed upstream with completion note on 2026-07-22. |
 | #8 | Synthetic-vs-real report labeling | P0 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added visible `data_mode`/source metadata in reports and tests. Closed upstream with completion note on 2026-07-22. |
