@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from src.agents.feedback import feedback_summary
 from src.agents.generate import propose_factors
 from src.agents.json_utils import factor_from_json
@@ -11,6 +13,9 @@ from src.factors.baseline import BASELINE_FACTORS
 from src.factors.engine import MAX_TIME_WINDOW
 from src.factors.engine import FactorExpr
 from src.llm.client import LLMClient
+from src.research.contract import ResearchRequest, confirm_request
+from src.research.preflight import CapabilityEvidence, create_execution_permit, run_preflight
+from src.utils.field_availability import get_field_availability
 from src.utils.data_loader import build_panel
 
 
@@ -27,6 +32,45 @@ def _small_cfg(**overrides):
 
 def _small_panel():
     return build_panel(_small_cfg(), save=False)
+
+
+def _execution_permit(cfg: Config):
+    panel = build_panel(cfg, save=False)
+    request = confirm_request(
+        ResearchRequest(
+            raw_question="Generate a daily price factor.",
+            hypothesis="Daily close contains cross-sectional signal.",
+            universe=cfg.universe,
+            start_date=cfg.start_date,
+            end_date=cfg.end_date,
+            target_horizon_days=20,
+            baseline="registered baseline factors",
+            allowed_fields=("operating_cash_flow", "total_equity"),
+            allowed_operators=("rank", "safe_div"),
+            candidate_count=1,
+            rounds=1,
+            hold_period_days=20,
+            success_criteria=("report OOS rank IC",),
+            data_mode="synthetic",
+        ),
+        known_fields=set(panel.columns),
+    )
+    dates = panel.index.get_level_values("date")
+    evidence = CapabilityEvidence(
+        data_mode="synthetic",
+        available_start_date=str(dates.min().date()),
+        available_end_date=str(dates.max().date()),
+        available_fields=frozenset(panel.columns),
+        forward_return_fields=frozenset({"fwd_ret_1", "fwd_ret_5", "fwd_ret_20"}),
+        supported_universes=frozenset({cfg.universe}),
+        field_availability=get_field_availability(panel),
+        historical_universe_verified=True,
+        adjustment_verified=True,
+        coverage_verified=True,
+        freshness_verified=True,
+    )
+    report = run_preflight(request, evidence)
+    return create_execution_permit(request, report, run_id="run_agent_test")
 
 
 def test_factor_from_json_preserves_metadata_and_extra_keys():
@@ -162,6 +206,23 @@ def test_agent_loop_runs_one_round_and_writes_factors(tmp_path):
     cfg = _small_cfg(data_dir=tmp_path / "data", results_dir=tmp_path / "results", llm_backend="mock")
     cfg.ensure_dirs()
     client = LLMClient(cfg)
-    results = run_loop(rounds=1, per_round=1, cfg=cfg, client=client)
+    permit = _execution_permit(cfg)
+    results = run_loop(rounds=1, per_round=1, cfg=cfg, client=client, execution_permit=permit)
     assert len(results) == 1
     assert list(cfg.factor_dir.glob("*.json"))
+    assert results[0]["expr"]["metadata"]["research_execution"]["request_id"] == permit.request_id
+
+
+def test_agent_loop_rejects_generation_without_execution_permit(tmp_path):
+    cfg = _small_cfg(data_dir=tmp_path / "data", results_dir=tmp_path / "results", llm_backend="mock")
+
+    with pytest.raises(PermissionError, match="passing preflight"):
+        run_loop(rounds=1, per_round=1, cfg=cfg, client=LLMClient(cfg))
+
+
+def test_agent_loop_rejects_work_beyond_confirmed_limits(tmp_path):
+    cfg = _small_cfg(data_dir=tmp_path / "data", results_dir=tmp_path / "results", llm_backend="mock")
+    permit = _execution_permit(cfg)
+
+    with pytest.raises(PermissionError, match="exceeds"):
+        run_loop(rounds=2, per_round=1, cfg=cfg, client=LLMClient(cfg), execution_permit=permit)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.agents.feedback import refine
 from src.agents.generate import propose_factors
@@ -15,6 +17,9 @@ from src.factors.baseline import BASELINE_FACTORS
 from src.factors.engine import FactorExpr
 from src.llm.client import LLMClient
 from src.utils.data_loader import build_panel, get_forward_returns, load_prices
+
+if TYPE_CHECKING:
+    from src.research.preflight import ExecutionPermit
 
 
 def _field_dict(panel) -> dict[str, str]:
@@ -32,13 +37,56 @@ def _save_factor(expr: FactorExpr, result: dict, path: Path, parent: str | None 
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _stamp_execution_lineage(expr: FactorExpr, permit: ExecutionPermit) -> None:
+    expr.metadata["research_execution"] = permit.to_dict()
+
+
+def _contract_scope_reason(expr: FactorExpr, permit: ExecutionPermit) -> str | None:
+    from src.factors.engine import expression_names
+
+    used_fields = expression_names(expr.expression) | set(expr.fields_used)
+    outside_fields = sorted(used_fields - set(permit.allowed_fields))
+    if outside_fields:
+        return f"candidate uses fields outside the confirmed research contract: {outside_fields}"
+
+    operator_names = {
+        ast.Add: "add",
+        ast.Sub: "sub",
+        ast.Mult: "mul",
+        ast.Div: "div",
+        ast.Pow: "pow",
+        ast.Mod: "mod",
+    }
+    tree = ast.parse(expr.expression, mode="eval")
+    used_operators = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    used_operators.update(
+        operator_names[type(node.op)]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.BinOp) and type(node.op) in operator_names
+    )
+    outside_operators = sorted(used_operators - set(permit.allowed_operators))
+    if outside_operators:
+        return f"candidate uses operators outside the confirmed research contract: {outside_operators}"
+    return None
+
+
 def run_loop(
     rounds: int = 1,
     per_round: int = 2,
     cfg: Config = CONFIG,
     client: LLMClient | None = None,
     refine_rounds: int = 1,
+    execution_permit: ExecutionPermit | None = None,
 ) -> list[dict]:
+    from src.research.preflight import validate_execution_permit
+
+    execution_permit = validate_execution_permit(execution_permit)
+    if rounds > execution_permit.rounds or rounds * per_round > execution_permit.candidate_count:
+        raise PermissionError("agent generation exceeds the rounds or candidate count confirmed by the contract")
     client = client or LLMClient(cfg)
     panel = build_panel(cfg, save=True)
     fwd_ret = get_forward_returns(load_prices(cfg), periods=(1, 5, 20))
@@ -59,6 +107,22 @@ def run_loop(
             current = expr
             parent: str | None = None
             for attempt in range(refine_rounds + 1):
+                _stamp_execution_lineage(current, execution_permit)
+                try:
+                    scope_reason = _contract_scope_reason(current, execution_permit)
+                except (SyntaxError, ValueError) as exc:
+                    scope_reason = f"candidate contract-scope validation failed: {exc}"
+                if scope_reason:
+                    results.append(
+                        {
+                            "round": round_id,
+                            "attempt": attempt,
+                            "expr": current.to_dict(),
+                            "parent": parent,
+                            "rejected": scope_reason,
+                        }
+                    )
+                    break
                 ok, reason = validate(current, field_dict, panel=panel, existing_factors=accepted, client=client)
                 if not ok:
                     results.append(
@@ -111,5 +175,4 @@ def run_loop(
 
 
 if __name__ == "__main__":
-    output = run_loop(rounds=1, per_round=2)
-    print(json.dumps(output, ensure_ascii=False, indent=2))
+    raise SystemExit("Agent generation requires a confirmed request and passing preflight; use the research service.")
