@@ -430,13 +430,15 @@ def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
     cards = "\n".join(render_packet_card(p) for p in packets) or "<p>还没有想法卡片。</p>"
     hero = """<section class="hero">
   <span class="eyebrow"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
-  <h1>智能体能否生成有<em>经济解释</em>的<br>A 股 <em>Alpha 因子</em>?</h1>
-  <p class="lede">研究过程沉淀的短想法:一条进展、一张示意图、一个留给你的问题。</p>
+  <h1>结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
+  <p class="lede">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
+  以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
   <div class="chips">
     <span class="chip">防 look-ahead</span>
     <span class="chip">样本外滚动</span>
     <span class="chip">纯代码回测</span>
-    <span class="chip">LLM 只提想法</span>
+    <span class="chip">有对照组</span>
+    <span class="chip">阴性结果也是结论</span>
   </div>
 </section>"""
     return f"""<!doctype html>
