@@ -27,6 +27,11 @@ from src.utils.field_availability import get_field_availability
 from src.utils.data_loader import build_panel
 
 
+class NonDuplicateClient:
+    def generate(self, prompt: str, system: str | None = None) -> str:
+        return '{"duplicate": false, "reason": "unit test semantic pass"}'
+
+
 def _small_cfg(**overrides):
     values = {
         "data_dir": Path("/tmp/alpha_factor_agent_pytest_synthetic"),
@@ -301,10 +306,76 @@ def test_validate_rejects_duplicate_expression_by_fingerprint():
     panel = _small_panel()
     expr = FactorExpr("copy", BASELINE_FACTORS[0].expression, "copy", BASELINE_FACTORS[0].fields_used)
 
-    ok, reason = validate(expr, set(panel.columns), panel=panel, existing_factors=[BASELINE_FACTORS[0]], client=LLMClient())
+    ok, reason = validate(expr, set(panel.columns), panel=panel, existing_factors=[BASELINE_FACTORS[0]])
 
     assert not ok
     assert "deterministic duplicate" in reason
+    novelty = expr.metadata["validation"]["novelty"]
+    evidence = novelty["evidence"][0]
+    assert novelty["status"] == "reject"
+    assert evidence["candidate_name"] == "copy"
+    assert evidence["nearest_factor"] == BASELINE_FACTORS[0].name
+    assert evidence["similarity_type"] == "deterministic_duplicate"
+    assert evidence["shared_fields"] == sorted(BASELINE_FACTORS[0].fields_used)
+    assert evidence["candidate_fingerprint"] == evidence["nearest_fingerprint"]
+    assert evidence["abs_corr"] == 1.0
+    assert evidence["threshold"] == 1.0
+    assert evidence["decision"] == "reject"
+    assert "deterministic duplicate" in evidence["reason"]
+
+
+def test_validate_rejects_high_correlation_with_evidence():
+    panel = _small_panel()
+    baseline = BASELINE_FACTORS[1]
+    expr = FactorExpr(
+        "rescaled_quality_roe",
+        "2 * rank(safe_div(net_income, total_equity))",
+        "same quality signal after rescaling",
+        ["net_income", "total_equity"],
+    )
+
+    ok, reason = validate(expr, set(panel.columns), panel=panel, existing_factors=[baseline], client=NonDuplicateClient())
+
+    assert not ok
+    assert "too correlated" in reason
+    novelty = expr.metadata["validation"]["novelty"]
+    evidence = novelty["evidence"][0]
+    assert novelty["status"] == "reject"
+    assert evidence["nearest_factor"] == baseline.name
+    assert evidence["similarity_type"] == "high_correlation_reject"
+    assert evidence["shared_fields"] == ["net_income", "total_equity"]
+    assert evidence["abs_corr"] >= evidence["threshold"]
+    assert evidence["threshold"] == novelty["corr_reject_threshold"]
+    assert evidence["decision"] == "reject"
+    assert evidence["candidate_fingerprint"] != evidence["nearest_fingerprint"]
+    assert "too correlated" in evidence["reason"]
+
+
+def test_validate_warns_high_correlation_with_evidence():
+    panel = _small_panel()
+    baseline = BASELINE_FACTORS[1]
+    expr = FactorExpr(
+        "quality_value_near_neighbor",
+        "0.6 * rank(safe_div(net_income, total_equity)) + 0.4 * rank(safe_div(eps, close))",
+        "quality with a value overlay",
+        ["net_income", "total_equity", "eps", "close"],
+    )
+
+    ok, reason = validate(expr, set(panel.columns), panel=panel, existing_factors=[baseline], client=NonDuplicateClient())
+
+    assert ok
+    assert reason == "ok"
+    novelty = expr.metadata["validation"]["novelty"]
+    evidence = novelty["evidence"][0]
+    assert "novelty warning" in expr.metadata["validation"]["warning"]
+    assert novelty["status"] == "warn"
+    assert evidence["nearest_factor"] == baseline.name
+    assert evidence["similarity_type"] == "high_correlation_warn"
+    assert evidence["shared_fields"] == ["net_income", "total_equity"]
+    assert evidence["threshold"] == novelty["corr_warn_threshold"]
+    assert evidence["threshold"] <= evidence["abs_corr"] < novelty["corr_reject_threshold"]
+    assert evidence["decision"] == "warn"
+    assert "novelty warning" in evidence["reason"]
 
 
 def test_agent_loop_runs_one_round_and_writes_factors(tmp_path):
@@ -315,6 +386,13 @@ def test_agent_loop_runs_one_round_and_writes_factors(tmp_path):
     results = run_loop(rounds=1, per_round=1, cfg=cfg, client=client, execution_permit=permit)
     assert len(results) == 1
     assert results[0]["expr"]["metadata"]["research_execution"]["request_id"] == permit.request_id
+    funnel = results[0]["candidate_funnel"]
+    assert funnel["generated"] == 1
+    assert funnel["validated"] == 1
+    assert funnel["backtested"] == 1
+    assert funnel["promoted"] == 1
+    assert funnel["multiple_testing_disclosure_required"] is False
+    assert results[0]["candidate_audit"]["reason_code"] == "promoted"
     factor_files = list(cfg.factor_dir.glob("*.json"))
     assert factor_files
     factor_payload = json.loads(factor_files[0].read_text(encoding="utf-8"))

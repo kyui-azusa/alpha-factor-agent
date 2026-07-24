@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from src.audit import candidate_funnel_summary
 from src.agents.feedback import development_feedback, refine, sealed_oos_evidence
 from src.agents.generate import propose_factors
 from src.agents.knowledge import generation_context
@@ -107,6 +108,7 @@ def run_loop(
     accepted: list[FactorExpr] = list(BASELINE_FACTORS)
     accepted_results: list[dict] = []
     results: list[dict] = []
+    candidate_audit: list[dict] = []
 
     for round_id in range(1, rounds + 1):
         candidates = propose_factors([factor.to_dict() for factor in accepted], gen_context, n=per_round, client=client)
@@ -114,7 +116,16 @@ def run_loop(
         rejected_names = {item["candidate"] for item in batch_decisions if item["decision"] == "reject"}
         for decision in batch_decisions:
             if decision["candidate"] in rejected_names:
-                results.append({"round": round_id, "attempt": 0, "batch_novelty_rejected": decision})
+                audit_row = {
+                    "generated": True,
+                    "validated": False,
+                    "backtested": False,
+                    "promoted": False,
+                    "rejected": True,
+                    "reason_code": "batch_novelty_rejected",
+                }
+                candidate_audit.append(audit_row)
+                results.append({"round": round_id, "attempt": 0, "batch_novelty_rejected": decision, "candidate_audit": audit_row})
         for expr in candidates:
             current = expr
             parent: str | None = None
@@ -125,6 +136,15 @@ def run_loop(
                 except (SyntaxError, ValueError) as exc:
                     scope_reason = f"candidate contract-scope validation failed: {exc}"
                 if scope_reason:
+                    audit_row = {
+                        "generated": True,
+                        "validated": False,
+                        "backtested": False,
+                        "promoted": False,
+                        "rejected": True,
+                        "reason_code": "contract_scope_rejected",
+                    }
+                    candidate_audit.append(audit_row)
                     results.append(
                         {
                             "round": round_id,
@@ -132,13 +152,30 @@ def run_loop(
                             "expr": current.to_dict(),
                             "parent": parent,
                             "rejected": scope_reason,
+                            "candidate_audit": audit_row,
                         }
                     )
                     break
                 ok, reason = validate(current, field_dict, panel=panel, existing_factors=accepted, client=client)
                 if not ok:
+                    audit_row = {
+                        "generated": True,
+                        "validated": False,
+                        "backtested": False,
+                        "promoted": False,
+                        "rejected": True,
+                        "reason_code": reason.split(":", 1)[0].replace(" ", "_").lower(),
+                    }
+                    candidate_audit.append(audit_row)
                     results.append(
-                        {"round": round_id, "attempt": attempt, "expr": current.to_dict(), "parent": parent, "rejected": reason}
+                        {
+                            "round": round_id,
+                            "attempt": attempt,
+                            "expr": current.to_dict(),
+                            "parent": parent,
+                            "rejected": reason,
+                            "candidate_audit": audit_row,
+                        }
                     )
                     break
                 result = backtest(current, panel, fwd_ret, cfg=cfg)
@@ -161,6 +198,15 @@ def run_loop(
                     accepted_results,
                 )
                 if promotion["action"] != "promote":
+                    audit_row = {
+                        "generated": True,
+                        "validated": True,
+                        "backtested": True,
+                        "promoted": False,
+                        "rejected": True,
+                        "reason_code": ",".join(promotion["reasons"]),
+                    }
+                    candidate_audit.append(audit_row)
                     results.append(
                         {
                             "round": round_id,
@@ -169,6 +215,7 @@ def run_loop(
                             "parent": parent,
                             "rejected": "; ".join(promotion["reasons"]),
                             "promotion": promotion,
+                            "candidate_audit": audit_row,
                         }
                     )
                     break
@@ -187,6 +234,15 @@ def run_loop(
                 )
                 accepted.append(current)
                 accepted_results.append(result)
+                audit_row = {
+                    "generated": True,
+                    "validated": True,
+                    "backtested": True,
+                    "promoted": True,
+                    "rejected": False,
+                    "reason_code": "promoted",
+                }
+                candidate_audit.append(audit_row)
                 results.append(
                     {
                         "round": round_id,
@@ -199,6 +255,7 @@ def run_loop(
                         "development_feedback": result["development_feedback"],
                         "oos_evidence": result["oos_evidence"],
                         "feedback_audit": feedback_audit,
+                        "candidate_audit": audit_row,
                     }
                 )
                 if attempt >= refine_rounds:
@@ -208,6 +265,9 @@ def run_loop(
                     break
                 parent = current.name
                 current = refined
+    funnel = candidate_funnel_summary(candidate_audit).to_dict()
+    for item in results:
+        item["candidate_funnel"] = funnel
     return results
 
 
