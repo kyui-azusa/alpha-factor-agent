@@ -1,0 +1,500 @@
+{
+  "schema_version": "1.0",
+  "run_id": "run-forecast-increment-20260724-01",
+  "generated_at": "2026-07-24 15:01 CST",
+  "playback_label": "已记录运行 · 离线回放",
+  "generation": {
+    "producer": "Codex task session (GPT-5)",
+    "mode": "recorded_llm_proposal_then_deterministic_evaluation",
+    "numeric_fields_produced_by_llm": false,
+    "note": "LLM 只提出候选与解释；全部数值来自列出的确定性产物。"
+  },
+  "contract": {
+    "title": "业绩预告文本的结构化信息增量检验",
+    "note": "公告原文已导出；处理组仍缺冻结模型版本、文本哈希缓存与可复现语义特征，结构化对照和研究闸门已真实运行。",
+    "data_domain": [
+      "日频复权行情",
+      "业绩预告",
+      "历史股票池"
+    ],
+    "field_categories": [
+      "结构化预告区间",
+      "公告原文与离线语义特征（缓存待完成）",
+      "行业与市值暴露"
+    ],
+    "start_date": "2015-01-01",
+    "end_date": "2021-12-31",
+    "train_end": "2019-12-31",
+    "validation_end": "2020-12-31",
+    "universe": "A 股历史上市公司集合",
+    "falsifiable_assertion": "公告文本特征能否在结构化业绩预告字段之外提供样本外 Rank IC 增量？",
+    "value_domain": "cross_sectional_rank",
+    "contract_hash": "79fb119187ef0c52f48440b9f9702e1eaa7fa08e0140e078bc3b57f3eeb0c60c",
+    "frozen_at": "2026-07-24T14:02:00+08:00",
+    "frozen": true
+  },
+  "phases": [
+    {
+      "index": 0,
+      "key": "clue",
+      "title": "研究线索",
+      "status": "completed",
+      "purpose": "记录原始观察，不先写结论。",
+      "input": "原始研究线索",
+      "process": "记录“公告文本是否提供结构化预告之外的增量信息”。",
+      "output": "未经改写的研究问题。",
+      "trust": "原始输入完整保留。"
+    },
+    {
+      "index": 1,
+      "key": "contract",
+      "title": "研究合同",
+      "status": "completed",
+      "purpose": "冻结定义域、值域与三段切分。",
+      "input": "数据域、股票池、日期与可证伪断言",
+      "process": "冻结三段日期切分并计算合同哈希。",
+      "output": "不可修改的研究合同。",
+      "trust": "合同哈希可复核。"
+    },
+    {
+      "index": 2,
+      "key": "materials",
+      "title": "生成材料",
+      "status": "completed",
+      "purpose": "列出字段、种子、算子与硬约束。",
+      "input": "表结构、种子因子、算子白名单",
+      "process": "确定性列举 Agent 可见材料。",
+      "output": "生成上下文清单。",
+      "trust": "白名单外输入 fail closed。"
+    },
+    {
+      "index": 3,
+      "key": "candidates",
+      "title": "候选池",
+      "status": "completed",
+      "purpose": "保留全部生成候选，包括被拒项。",
+      "input": "记录的 LLM 候选提案",
+      "process": "保留通过、拒绝与不可用候选。",
+      "output": "完整候选漏斗。",
+      "trust": "候选漏斗完整披露。"
+    },
+    {
+      "index": 4,
+      "key": "validation",
+      "title": "校验",
+      "status": "completed",
+      "purpose": "规则校验后再做语义查重。",
+      "input": "字段、PIT 与可执行性证据",
+      "process": "规则校验优先；语义只用于解释重复性。",
+      "output": "通过 / 拒绝及稳定原因码。",
+      "trust": "确定性规则拥有最终否决权。"
+    },
+    {
+      "index": 5,
+      "key": "development",
+      "title": "训练 + 验证迭代",
+      "status": "completed",
+      "purpose": "只在开发样本内优化并消耗验证预算。",
+      "input": "训练结果与两次验证预算",
+      "process": "确定性回测 20/40/60 日邻域。",
+      "output": "参数平坦度、年度一致性与中性化差异。",
+      "trust": "预算只减不退。"
+    },
+    {
+      "index": 6,
+      "key": "test",
+      "title": "测试段拆封",
+      "status": "completed",
+      "purpose": "一次性读取封存测试证据。",
+      "input": "封存的 2021 测试段",
+      "process": "一次性读取确定性测试证据。",
+      "output": "测试拆封审计事件。",
+      "trust": "拆封后禁止继续改动。"
+    },
+    {
+      "index": 7,
+      "key": "conclusion",
+      "title": "结论",
+      "status": "completed",
+      "purpose": "输出正、负或证据不足。",
+      "input": "测试证据与尝试次数",
+      "process": "确定性裁决到三个允许终态之一。",
+      "output": "证据不足；公告原文已落地，但冻结语义特征证据尚未形成。",
+      "trust": "裁决来自确定性产物。"
+    }
+  ],
+  "budget": {
+    "hypothesis_id": "forecast-text-increment",
+    "used": 2,
+    "per_hypothesis_limit": 2,
+    "global_used": 2,
+    "global_limit": 8
+  },
+  "candidates": [
+    {
+      "id": "forecast-text-increment",
+      "name": "业绩预告文本增量",
+      "status": "unavailable",
+      "category": "公告文本",
+      "summary": "公告原文与下一交易日可用规则已登记，但冻结模型版本、文本哈希缓存和离线语义特征尚未形成。",
+      "reason_code": "not_backtestable",
+      "reason": "缺少可复现的冻结语义特征产物；按 fail closed 原则不计算处理组指标。"
+    },
+    {
+      "id": "forecast-structured-midpoint",
+      "name": "结构化预告幅度对照",
+      "status": "passed",
+      "category": "结构化事件",
+      "summary": "预告增长区间中点的 PIT 安全横截面信号，已完成真实确定性回测。"
+    },
+    {
+      "id": "future-return-leak",
+      "name": "未来收益反推方向",
+      "status": "rejected",
+      "category": "无效候选",
+      "summary": "候选试图把未来收益标签作为 T 日输入。",
+      "reason_code": "future_field",
+      "reason": "未来收益只能是标签；确定性规则拒绝。"
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "forecast-hold-neighborhood",
+      "kind": "deterministic_backtest",
+      "label": "20 / 40 / 60 日持有邻域",
+      "source": "results/workflow/forecast_hold_{20,40,60}.json",
+      "payload": {
+        "hold_20_ic": 0.013395544121243408,
+        "hold_40_ic": 0.024355698111580316,
+        "hold_60_ic": 0.027843318154246573,
+        "points": [
+          {
+            "parameter": 20,
+            "ic": 0.013395544121243408
+          },
+          {
+            "parameter": 40,
+            "ic": 0.024355698111580316
+          },
+          {
+            "parameter": 60,
+            "ic": 0.027843318154246573
+          }
+        ],
+        "ic_by_year": {
+          "2019": 0.048960239753140476,
+          "2020": 0.04673094454501579,
+          "2021": -0.004859189368692176
+        }
+      }
+    },
+    {
+      "artifact_id": "forecast-neutralization-60d",
+      "kind": "deterministic_neutralization",
+      "label": "市值 / 行业中性化诊断",
+      "source": "results/workflow/forecast_hold_60.json",
+      "payload": {
+        "size_only_ic": 0.048993931778748834,
+        "full_neutral_ic": 0.027843318154246573,
+        "ic_delta": -0.02115061362450226,
+        "residual_correlation": 2.2287167666945606e-09,
+        "method": "daily OLS residual against log market cap and industry dummies"
+      }
+    },
+    {
+      "artifact_id": "forecast-test-2021",
+      "kind": "sealed_test",
+      "label": "2021 封存测试证据",
+      "source": "results/workflow/forecast_hold_60.json",
+      "payload": {
+        "structured_rank_ic_2021": -0.004859189368692176,
+        "text_increment_rank_ic_2021": "not_computed_missing_pit_text",
+        "increment_status": "insufficient_evidence",
+        "text_raw_status": "present",
+        "text_feature_status": "missing_frozen_reproducible_cache"
+      }
+    },
+    {
+      "artifact_id": "candidate-validation-ledger",
+      "kind": "deterministic_validation",
+      "label": "候选校验账本",
+      "source": "src/agents/validate.py",
+      "payload": {
+        "generated": 3,
+        "passed": 1,
+        "rejected": 1,
+        "unavailable": 1
+      }
+    },
+    {
+      "artifact_id": "judgment-insufficient-text-data",
+      "kind": "deterministic_judgment",
+      "label": "终局裁决",
+      "source": "src/research/workflow.py",
+      "payload": {
+        "state": "insufficient_evidence",
+        "attempts_before_conclusion": 2
+      }
+    }
+  ],
+  "canvas_actions": [
+    {
+      "action": "compare",
+      "title": "主实验：文本是否带来结构化字段之外的增量？",
+      "source_artifacts": [
+        "forecast-test-2021"
+      ],
+      "comparison": {
+        "treatment": {
+          "label": "结构化预告 + 公告文本",
+          "artifact_id": "forecast-test-2021",
+          "path": "text_increment_rank_ic_2021"
+        },
+        "control": {
+          "label": "仅结构化预告",
+          "artifact_id": "forecast-test-2021",
+          "path": "structured_rank_ic_2021"
+        },
+        "metric": {
+          "label": "2021 样本外 Rank IC 增量",
+          "artifact_id": "forecast-test-2021",
+          "path": "increment_status"
+        },
+        "controls": [
+          "同一批股票",
+          "同一时间窗",
+          "同样中性化",
+          "同样交易成本口径"
+        ]
+      }
+    },
+    {
+      "action": "compare",
+      "title": "公共暴露剥离前后，信号还剩多少？",
+      "source_artifacts": [
+        "forecast-neutralization-60d"
+      ],
+      "comparison": {
+        "treatment": {
+          "label": "市值 + 行业中性",
+          "artifact_id": "forecast-neutralization-60d",
+          "path": "full_neutral_ic"
+        },
+        "control": {
+          "label": "仅市值中性",
+          "artifact_id": "forecast-neutralization-60d",
+          "path": "size_only_ic"
+        },
+        "metric": {
+          "label": "Rank IC 差值",
+          "artifact_id": "forecast-neutralization-60d",
+          "path": "ic_delta"
+        },
+        "controls": [
+          "同一事件样本",
+          "60 日持有",
+          "20 日前向收益",
+          "复权口径一致"
+        ]
+      }
+    },
+    {
+      "action": "show",
+      "title": "展示参数邻域",
+      "source_artifacts": [
+        "forecast-hold-neighborhood"
+      ],
+      "annotation": "20 / 40 / 60 日持有参数均由相同确定性脚本重跑，避免只展示最好点。"
+    },
+    {
+      "action": "annotate",
+      "title": "标注证据边界",
+      "source_artifacts": [
+        "judgment-insufficient-text-data"
+      ],
+      "annotation": "结构化对照已运行；文本字段缺少 PIT 证据，因此主问题诚实落在“证据不足”。"
+    }
+  ],
+  "triggered_cards": [
+    {
+      "card_id": "robustness-parameter-neighborhood",
+      "kind": "parameter_flatness",
+      "title": "参数邻域平坦度",
+      "summary": "存在孤立尖峰",
+      "source_artifact": "forecast-hold-neighborhood",
+      "payload": {
+        "points": [
+          {
+            "parameter": 20,
+            "ic": 0.013395544121243408
+          },
+          {
+            "parameter": 40,
+            "ic": 0.024355698111580316
+          },
+          {
+            "parameter": 60,
+            "ic": 0.027843318154246573
+          }
+        ],
+        "spread_ratio": 0.6607761656338981,
+        "shape": "spike"
+      }
+    },
+    {
+      "card_id": "robustness-yearly-consistency",
+      "kind": "yearly_consistency",
+      "title": "分年度一致性",
+      "summary": "2/3 个年度为正",
+      "source_artifact": "forecast-hold-neighborhood",
+      "payload": {
+        "ic_by_year": {
+          "2019": 0.048960239753140476,
+          "2020": 0.04673094454501579,
+          "2021": -0.004859189368692176
+        }
+      }
+    },
+    {
+      "card_id": "robustness-neutralization-delta",
+      "kind": "neutralization_delta",
+      "title": "中性化前后差异",
+      "summary": "Rank IC 变化 -0.0212",
+      "source_artifact": "forecast-hold-neighborhood",
+      "payload": {
+        "before": 0.048993931778748834,
+        "after": 0.027843318154246573,
+        "delta": -0.02115061362450226
+      }
+    },
+    {
+      "card_id": "neutralization-orthogonality",
+      "kind": "orthogonality",
+      "title": "行业 / 市值暴露已削弱",
+      "summary": "残差相关性 0.000",
+      "source_artifact": "forecast-neutralization-60d",
+      "payload": {
+        "residual_correlation": 2.2287167666945606e-09,
+        "mechanism": "逐日把行业哑变量与市值暴露投影出去，只保留正交残差。",
+        "reliability": "可靠性由残差相关性这个同源确定性数字校验。",
+        "boundary": "这是削弱而非消除；暴露基逐日估计、彼此不正交且不能完美重构。"
+      }
+    },
+    {
+      "card_id": "rejection-future-return-leak",
+      "kind": "rejection_reason",
+      "title": "未来收益反推方向",
+      "summary": "未来函数 / 目标泄漏",
+      "source_artifact": "candidate-validation-ledger",
+      "payload": {
+        "candidate_id": "future-return-leak",
+        "reason_code": "future_field",
+        "reason": "未来收益只能是标签；确定性规则拒绝。",
+        "candidate_remains_visible": true
+      }
+    }
+  ],
+  "conclusion": {
+    "state": "insufficient_evidence",
+    "label": "证据不足",
+    "statement": "结构化预告对照可复现，但当前不能声称公告文本带来增量 Alpha。",
+    "attempts_before_conclusion": 2,
+    "source_artifact": "judgment-insufficient-text-data"
+  },
+  "audit": [
+    {
+      "sequence": 1,
+      "timestamp": "2026-07-24T14:00:00+08:00",
+      "action": "advance",
+      "from_phase": 0,
+      "to_phase": 1,
+      "details": {}
+    },
+    {
+      "sequence": 2,
+      "timestamp": "2026-07-24T14:02:00+08:00",
+      "action": "confirm_contract",
+      "from_phase": 1,
+      "to_phase": 2,
+      "details": {
+        "contract_hash": "79fb119187ef0c52f48440b9f9702e1eaa7fa08e0140e078bc3b57f3eeb0c60c"
+      }
+    },
+    {
+      "sequence": 3,
+      "timestamp": "2026-07-24T14:03:00+08:00",
+      "action": "advance",
+      "from_phase": 2,
+      "to_phase": 3,
+      "details": {}
+    },
+    {
+      "sequence": 4,
+      "timestamp": "2026-07-24T14:05:00+08:00",
+      "action": "advance",
+      "from_phase": 3,
+      "to_phase": 4,
+      "details": {}
+    },
+    {
+      "sequence": 5,
+      "timestamp": "2026-07-24T14:06:00+08:00",
+      "action": "advance",
+      "from_phase": 4,
+      "to_phase": 5,
+      "details": {}
+    },
+    {
+      "sequence": 6,
+      "timestamp": "2026-07-24T14:35:00+08:00",
+      "action": "consume_validation_attempt",
+      "from_phase": 5,
+      "to_phase": 5,
+      "details": {
+        "hypothesis_id": "forecast-text-increment",
+        "artifact_id": "forecast-hold-neighborhood",
+        "attempt_number": 1,
+        "remaining_for_hypothesis": 1,
+        "remaining_global": 7
+      }
+    },
+    {
+      "sequence": 7,
+      "timestamp": "2026-07-24T14:58:00+08:00",
+      "action": "consume_validation_attempt",
+      "from_phase": 5,
+      "to_phase": 5,
+      "details": {
+        "hypothesis_id": "forecast-text-increment",
+        "artifact_id": "forecast-neutralization-60d",
+        "attempt_number": 2,
+        "remaining_for_hypothesis": 0,
+        "remaining_global": 6
+      }
+    },
+    {
+      "sequence": 8,
+      "timestamp": "2026-07-24T15:00:00+08:00",
+      "action": "unseal_test",
+      "from_phase": 5,
+      "to_phase": 6,
+      "details": {
+        "artifact_id": "forecast-test-2021",
+        "attempts_before_conclusion": 2
+      }
+    },
+    {
+      "sequence": 9,
+      "timestamp": "2026-07-24T15:01:00+08:00",
+      "action": "conclude",
+      "from_phase": 6,
+      "to_phase": 7,
+      "details": {
+        "conclusion": "insufficient_evidence",
+        "artifact_id": "judgment-insufficient-text-data",
+        "attempts_before_conclusion": 2
+      }
+    }
+  ],
+  "record_digest": "ae122adafaf7066170cdf3be8a0f371a8478bfc319d11f88ad75c4289e02a0f1"
+}

@@ -1,26 +1,35 @@
-\contentsline {section}{\numberline {1}引言}{3}{section.1}%
-\contentsline {paragraph}{本文贡献。}{3}{paragraph*.1}%
-\contentsline {section}{\numberline {2}相关工作与定位}{3}{section.2}%
-\contentsline {section}{\numberline {3}系统架构}{4}{section.3}%
-\contentsline {section}{\numberline {4}数据契约与点时间对齐}{4}{section.4}%
-\contentsline {section}{\numberline {5}方法}{5}{section.5}%
-\contentsline {subsection}{\numberline {5.1}受限因子表达式引擎}{5}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}基线因子库}{5}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}回测与评价指标}{6}{subsection.5.3}%
-\contentsline {paragraph}{Rank IC 与 ICIR。}{6}{paragraph*.3}%
-\contentsline {paragraph}{分组与多空收益。}{6}{paragraph*.4}%
-\contentsline {paragraph}{换手率与成本后收益。}{6}{paragraph*.5}%
-\contentsline {subsection}{\numberline {5.4}LLM 封装与 Agent 闭环}{6}{subsection.5.4}%
-\contentsline {section}{\numberline {6}实验:聚源真实数据下的初步实证}{7}{section.6}%
-\contentsline {paragraph}{实验目的与边界。}{7}{paragraph*.6}%
-\contentsline {paragraph}{真实数据接入状态。}{7}{paragraph*.7}%
-\contentsline {paragraph}{实验设置。}{8}{paragraph*.8}%
-\contentsline {paragraph}{验证清单。}{8}{paragraph*.10}%
-\contentsline {section}{\numberline {7}可复现性声明}{10}{section.7}%
-\contentsline {section}{\numberline {8}讨论、局限与后续工作}{10}{section.8}%
-\contentsline {paragraph}{价值定位。}{10}{paragraph*.14}%
-\contentsline {paragraph}{有效性威胁（threats to validity）。}{10}{paragraph*.15}%
-\contentsline {paragraph}{后续工作。}{10}{paragraph*.16}%
-\contentsline {section}{\numberline {9}结论}{10}{section.9}%
-\contentsline {section}{参考文献}{11}{section.9}%
+\contentsline {section}{\numberline {1}引言}{4}{section.1}%
+\contentsline {paragraph}{本文贡献。}{4}{paragraph*.1}%
+\contentsline {section}{\numberline {2}相关工作与研究定位}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}横截面收益预测与样本外纪律}{5}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}机器学习、符号回归与 LLM 因子生成}{5}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}本文的研究空缺}{5}{subsection.2.3}%
+\contentsline {section}{\numberline {3}系统设计与研究治理}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}职责边界}{5}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}受限表达式与校验}{6}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}不可逆研究状态机}{6}{subsection.3.3}%
+\contentsline {section}{\numberline {4}数据、变量与防前视设计}{6}{section.4}%
+\contentsline {subsection}{\numberline {4.1}数据来源与样本}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}点时间可得性}{7}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}结构化对照与文本处理组}{7}{subsection.4.3}%
+\contentsline {section}{\numberline {5}实证方法}{8}{section.5}%
+\contentsline {subsection}{\numberline {5.1}收益标签与横截面评价}{8}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}市值与行业中性化}{8}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}重叠收益与 Newey--West 修正}{8}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}实验口径}{9}{subsection.5.4}%
+\contentsline {section}{\numberline {6}结果}{9}{section.6}%
+\contentsline {subsection}{\numberline {6.1}结构化对照的参数邻域}{9}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}复权与中性化的影响}{10}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}年度稳定性与封存测试}{11}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}五分组收益}{12}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}候选漏斗与主问题裁决}{12}{subsection.6.5}%
+\contentsline {section}{\numberline {7}讨论}{13}{section.7}%
+\contentsline {subsection}{\numberline {7.1}结果如何理解}{13}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}方法论价值}{13}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}与既有工作的关系}{13}{subsection.7.3}%
+\contentsline {section}{\numberline {8}有效性威胁与局限}{14}{section.8}%
+\contentsline {section}{\numberline {9}后续工作}{14}{section.9}%
+\contentsline {section}{\numberline {10}结论}{14}{section.10}%
+\contentsline {section}{可复现性与产物映射}{15}{section.10}%
+\contentsline {section}{参考文献}{15}{table.6}%
 \contentsfinish 

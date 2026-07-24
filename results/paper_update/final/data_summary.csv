@@ -1,0 +1,4 @@
+﻿dataset,rows,entities,date_min,date_max
+forecast_raw,39294,4090,2019-06-03,2021-12-31
+usable_structured_events,13283,,2019-06-03,2021-12-30
+pit_panel,5809082,4289,2015-01-05,2021-12-31
