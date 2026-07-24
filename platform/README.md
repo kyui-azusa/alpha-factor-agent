@@ -28,6 +28,24 @@ platform/
 python platform/build.py        # → platform/dist/index.html(单文件)
 ```
 
+## 首屏视频
+
+`content/hero.md`(fail-closed:没有 `public: true` 就整块不渲染)。三层递进:
+
+| 层 | 文件 | 何时加载 | 作用 |
+|---|---|---|---|
+| 海报 | `media/poster.jpg` ~20KB | 立即 | 占位,不留白洞 |
+| 环境预告 | `media/teaser.mp4` ~230KB | 立即,静音循环 | 只做氛围;进视口才播,切后台就停 |
+| 全片 | `media/demo.mp4` ~6.5MB | **点了才下** | 灯箱里带声音看 |
+
+素材由 `python scripts/make_hero_media.py` 从 Manim 全片切出(挑三个有动作的节拍接成无缝循环),
+**重渲染视频后要重跑它再 `build.py`**。视频没法内联进单文件 HTML,按 `paper.pdf` 的老规矩单独上传,
+`build.py` 结尾会打印完整的上传清单。
+
+入场是逐级揭幕(眉标→标题→导语→标签→影片,差 70ms),影片那级是"显影"(模糊+缩放一起收)而非淡入。
+起始状态写在 `@keyframes` 的 `from` 里配 `fill-mode: backwards`,**不写在元素上** ——
+差别在失败方向:写元素上时动画一旦没跑,首屏就永远空白。
+
 ## 配色(深 / 浅)
 
 顶栏右上角一枚按钮切换,选择存 `localStorage['alpha-theme']`;**没选过就跟随系统**,白天自动是浅色。
@@ -75,14 +93,42 @@ systemctl restart alpha-intake
 curl -s https://alpha.cihua.run/api/intake/health   # {"mode":"github"} 即已切换
 ```
 
+研究面板由 `panel/` 独立构建并部署到同域 `/panel/`;原站成果区只链接它,不参与其构建:
+
+```bash
+cd panel && pnpm build
+rsync -a --delete dist/ root@<SERVER_IP>:/var/www/alpha.cihua.run/panel/
+```
+
+两套静态产物可以分别回滚。panel 不新增 API,也不改变 `/api/intake` 的反代与服务职责
+(ADR-0024)。
+
 ## 工单字段 → Issue
 
-Intake Fields(CONTEXT):提交人 / 标题 / 描述 / 类型 / 优先级 / 相关卡片 / 附件 / 截图。
+Intake Fields(CONTEXT):提交人 / 标题 / 描述 / 类型 / 优先级 / 关联工单 / 需要审核 / 附件 / 截图。
 提交人 → 正文;`type/priority` → labels(`功能/缺陷/问题/建议` + `P:高/中/低`);截图保存为公开文件并以 Markdown 图片写入 Issue 正文;防滥用:honeypot + 每 IP 限流 + 5MB 图片上限。
+
+**关联工单**(替代原来的「相关想法卡片」,那栏没人用):新工单可以指着老工单说话。`related_issues` 收自由输入
+(`12` / `#12` / `#12, 15`),`parse_related_issues` 去重保序、最多 5 条,写成正文里的 `**关联工单:** #12 #15` ——
+GitHub 自己会把 `#12` 变成交叉引用,被引用的工单时间线上出现一条 mention。**刻意不做站内回复/父子层级**:
+只有「引用」这一层,复杂度就到此为止。页面上历史工单每条带一枚「引用」按钮(再点一次取消),
+点了把号码塞进表单那栏并高亮;手打号码时按钮也会同步显示「已引用」。
+
+**需要审核**(`needs_review`):协作者自己声明「这条还没验证过 —— 比如和 AI 讨论出来的结论」,或希望别人复核。
+勾了就打 `待审核` 标签,**同时在正文写一行声明**:标签可能被人在 GitHub 上摘掉,正文那行不会,
+所以 `/api/intake/issues` 两边任一成立就算待审核。GitHub 会自己建缺失的标签(仓库里 `prio:低` 就是这么来的);
+想要个像样的颜色就先 `gh label create 待审核 -c FBCA04`。
+
+**历史工单筛选**:状态 / 类型 / 提出者 三个下拉 + 「只看待审核」「收起回复」两个开关,
+外加默认只露最近 8 条的「展开全部 N 条」。提出者不是 GitHub 作者(那永远是项目账号),
+而是后端从正文首行 `**提交人:**` 解析出来的 —— 筛选维度全部挂在 `.issue-item` 的 `data-*` 上,列表本身就是数据源。
 
 ## 修复回执 → Issue Comment
 
 修复完成后,后台或自动化可调用受保护的 `POST /api/intake/receipts`,后端会用服务端 PAT 给对应 GitHub Issue 写一条带标记的评论。`/api/intake/issues` 会读取最新评论里的回执摘要,网站“历史工单”列表随刷新同步展示。
+
+回执是**一次仓库级评论查询**(`GET /issues/comments`,倒序翻页,最多 `COMMENTS_MAX_PAGES` 页)按工单号归位的,
+不是每条工单发一次请求 —— 列表放开到全量后,后者是几十次串行调用。同一条工单第一次遇到的评论就是最新的,回执优先于普通评论。
 
 ```bash
 curl -s -X POST https://alpha.cihua.run/api/intake/receipts \

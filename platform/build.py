@@ -23,10 +23,14 @@ import graph as graph_mod
 ROOT = Path(__file__).resolve().parent
 PACKETS_DIR = ROOT / "content" / "packets"
 SHOWCASE_DIR = ROOT / "content" / "showcase"
+HERO_FILE = ROOT / "content" / "hero.md"
 CSS_FILE = ROOT / "static" / "style.css"
 DIST = ROOT / "dist"
 
-# Intake Fields(CONTEXT.md):提交人 / 标题 / 描述 / 附件 / 相关想法卡片 / 类型 / 优先级
+# Intake Fields(CONTEXT.md):提交人 / 标题 / 描述 / 附件 / 关联工单 / 类型 / 优先级
+# 关联工单只是「指着老工单说话」:写进正文由 GitHub 自动交叉引用,不做站内回复层级。
+MAX_RELATED_ISSUES = 5
+REVIEW_LABEL = "待审核"      # 与 intake_service.REVIEW_LABEL 同步
 ISSUE_TYPES = ["功能", "缺陷", "问题", "建议"]
 PRIORITIES = ["低", "中", "高"]
 
@@ -44,7 +48,9 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   </defs>
   <rect x="8" y="8" width="48" height="48" rx="16" fill="url(#g)" filter="url(#s)"/>
 </svg>"""
-FAVICON_HREF = "data:image/svg+xml," + urllib.parse.quote(FAVICON_SVG, safe="/:;=?&,%#")
+# `#` 必须编码成 %23:data URI 写在 href 属性里,第一个裸 # 会被当成 fragment 起点,
+# URL 从那里截断 —— 色值 #7c5cff 和 url(#g) 都带 #,不编码的话 SVG 只剩半句,favicon 直接不显示。
+FAVICON_HREF = "data:image/svg+xml," + urllib.parse.quote(FAVICON_SVG, safe="/:;=?&,%")
 
 
 def parse_packet(path: Path) -> dict:
@@ -73,6 +79,35 @@ def load_showcase() -> list[dict]:
     items = [m for m in items if m.get("public") is True]
     items.sort(key=lambda m: (int(m.get("order", 999)), str(m.get("id", ""))))
     return items
+
+
+def load_hero_film() -> dict:
+    """首屏视频。同样 fail-closed:没有 hero.md 或没写 public: true 就整块不渲染(ADR-0020)。"""
+    if not HERO_FILE.exists():
+        return {}
+    meta = parse_packet(HERO_FILE)
+    if meta.get("public") is not True:
+        return {}
+    for key in ("poster", "teaser", "video"):
+        if not (ROOT / str(meta.get(key, ""))).exists():
+            raise FileNotFoundError(
+                f"hero.md 的 {key} 指向 {meta.get(key)},文件不存在 —— 先跑 scripts/make_hero_media.py"
+            )
+    return meta
+
+
+def copy_media(film: dict) -> list[str]:
+    """视频不能内联进单文件 HTML(6MB base64 会涨到 8MB+),按 paper.pdf 的老规矩单独拷。"""
+    if not film:
+        return []
+    names = []
+    for key in ("poster", "teaser", "video"):
+        rel = str(film[key])
+        dest = DIST / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / rel, dest)
+        names.append(rel)
+    return names
 
 
 def copy_snapshots(items: list[dict]) -> list[tuple[str, str]]:
@@ -169,7 +204,8 @@ def render_showcase_card(item: dict) -> str:
         parts = []
         for link in links:
             label = _esc(link.get("label", "打开"))
-            href = _esc(link.get("href", "#"))
+            raw_href = str(link.get("href", "#"))
+            href = _esc(raw_href)
             cls = "go primary" if link.get("primary") else "go"
             # stamp: snapshot → 标签后附快照日期,让访客知道站内读的是哪一版
             if link.get("stamp") == "snapshot" and item.get("snapshot_date"):
@@ -185,9 +221,13 @@ def render_showcase_card(item: dict) -> str:
     <p class="embed-fallback">看不到内容?<a href="{href}" target="_blank" rel="noopener">在新标签打开</a>(部分手机浏览器不支持内嵌 PDF)。</p>
   </div>"""
             else:
-                parts.append(
-                    f'<a class="{cls}" href="{href}" target="_blank" rel="noopener">{label}</a>'
+                external_attrs = (
+                    ' target="_blank" rel="noopener"'
+                    if urllib.parse.urlsplit(raw_href).scheme in {"http", "https"}
+                    or raw_href.startswith("//")
+                    else ""
                 )
+                parts.append(f'<a class="{cls}" href="{href}"{external_attrs}>{label}</a>')
         links_block = f'<div class="go-row">{"".join(parts)}</div>{embed_block}'
 
     body = item.get("body", "")
@@ -200,10 +240,10 @@ def render_showcase_card(item: dict) -> str:
   </header>
   <h3>{_esc(item.get('title', '(无标题)'))}</h3>
   <p class="sc-summary">{_esc(item.get('summary', ''))}</p>
-  {note_block}
-  {sections_block}
-  {body_block}
-  {links_block}
+{note_block}
+{sections_block}
+{body_block}
+{links_block}
 </article>"""
 
 
@@ -240,6 +280,41 @@ def render_metric_card(g: "graph_mod.Graph") -> str:
             <span class="m-head">{_esc(layer["label"])}<em>{_esc(layer.get("note", ""))}</em></span>
             <div class="m-chips">{chips}</div>
           </aside>"""
+
+
+def render_film(film: dict) -> str:
+    """首屏视频卡。
+
+    三层:海报(秒出,占位)→ 静音循环预告(氛围)→ 点开才加载的全片(放进灯箱看)。
+    预告不带声音也不带信息负担,真要看的人点一下才付 6MB 的流量。
+    """
+    if not film:
+        return ""
+    status = film.get("status", "")
+    return f"""  <figure class="film r-5">
+    <button type="button" class="film-stage" data-film-open
+            aria-label="播放{_esc(film.get('title', '演示视频'))}">
+      <img class="film-poster" src="{_esc(film['poster'])}" alt="" width="960" height="540" decoding="async">
+      <video class="film-loop" data-film-loop src="{_esc(film['teaser'])}"
+             muted loop playsinline preload="none" aria-hidden="true" tabindex="-1"></video>
+      <span class="film-scrim" aria-hidden="true"></span>
+      <span class="film-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+      <span class="film-meta">
+        <em>{_esc(film.get('label', '演示'))}{f' · {_esc(status)}' if status else ''}</em>
+        <strong>{_esc(film.get('title', ''))}</strong>
+        <span class="film-dur">{_esc(film.get('duration', ''))}</span>
+      </span>
+    </button>
+    <figcaption>{_esc(film.get('summary', ''))}{f'<span class="film-note">{_esc(film["note"])}</span>' if film.get("note") else ''}</figcaption>
+  </figure>
+  <div class="film-box" data-film-box hidden>
+    <div class="film-box-scrim" data-film-close></div>
+    <div class="film-box-inner" role="dialog" aria-modal="true" aria-label="{_esc(film.get('title', '演示视频'))}">
+      <button type="button" class="film-box-close" data-film-close aria-label="关闭">×</button>
+      <video class="film-full" data-film-full src="{_esc(film['video'])}"
+             poster="{_esc(film['poster'])}" controls playsinline preload="none"></video>
+    </div>
+  </div>"""
 
 
 def render_graph_section() -> tuple[str, str]:
@@ -293,6 +368,7 @@ def render_graph_section() -> tuple[str, str]:
 
 def render_form() -> str:
     type_opts = "".join(f'<option value="{_esc(t)}">{_esc(t)}</option>' for t in ISSUE_TYPES)
+    filter_type_opts = type_opts
     prio_opts = "".join(
         f'<option value="{_esc(v)}"{" selected" if v == "中" else ""}>{_esc(v)}</option>'
         for v in PRIORITIES
@@ -323,8 +399,9 @@ def render_form() -> str:
       <label class="field">优先级
         <select name="priority">{prio_opts}</select>
       </label>
-      <label class="field">相关想法卡片
-        <input name="related_packet" maxlength="80" placeholder="卡片 id(可选)">
+      <label class="field">关联工单
+        <input name="related_issues" data-ref-input maxlength="80" inputmode="numeric" placeholder="工单号,如 #12(可选)">
+        <span class="hint" data-ref-hint>最多 {MAX_RELATED_ISSUES} 条;也可在下方「历史工单」点「引用」</span>
       </label>
     </div>
     <div class="grid">
@@ -350,6 +427,13 @@ def render_form() -> str:
         <button type="button" class="icon-btn danger" data-screenshot-remove aria-label="删除截图" title="删除截图">×</button>
       </div>
     </div>
+    <label class="check">
+      <input type="checkbox" name="needs_review" value="1">
+      <span>
+        <strong>需要他人审核</strong>
+        <em>内容还没验证过(比如和 AI 讨论出来的结论),希望别人复核后再采信 —— 会打上「{REVIEW_LABEL}」标签</em>
+      </span>
+    </label>
     <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
     <div class="submit-row">
       <button type="submit" class="btn-primary">提交工单</button>
@@ -364,9 +448,29 @@ def render_form() -> str:
       </div>
       <button type="button" class="icon-btn" data-issues-refresh aria-label="刷新历史工单" title="刷新历史工单">↻</button>
     </div>
+    <div class="contribution-panel" hidden data-contribution-panel></div>
+    <div class="filters" hidden data-issue-filters>
+      <select data-filter-state aria-label="按状态筛选">
+        <option value="">全部状态</option>
+        <option value="open">处理中</option>
+        <option value="closed">已关闭</option>
+      </select>
+      <select data-filter-type aria-label="按类型筛选">
+        <option value="">全部类型</option>
+        {filter_type_opts}
+      </select>
+      <select data-filter-submitter aria-label="按提出者筛选">
+        <option value="">全部提出者</option>
+      </select>
+      <label class="toggle"><input type="checkbox" data-filter-review>只看{REVIEW_LABEL}</label>
+      <label class="toggle"><input type="checkbox" data-collapse-replies>收起回复</label>
+      <button type="button" class="link-btn" data-filter-reset hidden>清除筛选</button>
+    </div>
     <div class="issue-list" data-issue-list>
       <p class="empty">正在读取...</p>
     </div>
+    <p class="empty" data-issue-empty hidden>没有符合筛选条件的工单。</p>
+    <button type="button" class="more-btn" data-issues-more hidden>展开全部</button>
   </div>
 </section>"""
 
@@ -392,19 +496,25 @@ THEME_TOGGLE = (
 )
 
 
-def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
+def render_page(packets: list[dict], showcase: list[dict], css: str, film: dict | None = None) -> str:
+    film = film or {}
     graph_html, graph_data = render_graph_section()
     cards = "\n".join(render_packet_card(p) for p in packets) or "<p>还没有想法卡片。</p>"
-    hero = """<section class="hero">
-  <span class="eyebrow"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
-  <h1>智能体能否生成有<em>经济解释</em>的<br>A 股 <em>Alpha 因子</em>?</h1>
-  <p class="lede">研究过程沉淀的短想法:一条进展、一张示意图、一个留给你的问题。</p>
-  <div class="chips">
-    <span class="chip">防 look-ahead</span>
-    <span class="chip">样本外滚动</span>
-    <span class="chip">纯代码回测</span>
-    <span class="chip">LLM 只提想法</span>
+    hero = f"""<section class="hero{' has-film' if film else ''}">
+  <div class="hero-copy">
+    <span class="eyebrow r-1"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
+    <h1 class="r-2">结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
+    <p class="lede r-3">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
+    以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
+    <div class="chips r-4">
+      <span class="chip">防 look-ahead</span>
+      <span class="chip">样本外滚动</span>
+      <span class="chip">纯代码回测</span>
+      <span class="chip">有对照组</span>
+      <span class="chip">阴性结果也是结论</span>
+    </div>
   </div>
+{render_film(film)}
 </section>"""
     return f"""<!doctype html>
 <html lang="zh-CN" data-theme="dark">
@@ -462,6 +572,7 @@ GRAPH_JS = """
   var svg = document.getElementById('graph-svg');
   var panel = document.querySelector('[data-trace]');
   var stage = document.querySelector('.graph-stage');
+  var wrap = document.querySelector('.graph-wrap');
   if (!svg || !panel) return;
 
   var preds = {};
@@ -500,6 +611,7 @@ GRAPH_JS = """
     syncChips(null);
     panel.hidden = true;
     if (stage) stage.classList.remove('with-panel');
+    if (wrap) wrap.classList.remove('has-trace');
     syncHint();          // 面板收起后画布变宽,提示行要跟着重算
   }
 
@@ -553,6 +665,7 @@ GRAPH_JS = """
 
     panel.hidden = false;
     if (stage) stage.classList.add('with-panel');
+    if (wrap) wrap.classList.add('has-trace');
     syncHint();          // 面板占掉 330px 后画布又变窄,提示行要跟着重算
     keepVisible(id);
   }
@@ -592,11 +705,10 @@ GRAPH_JS = """
   syncHint();
 
   // 展开:滚到这一节先粘住,把画布从版心宽推到整张图放得下(--gx 0→1),再放行
-  var wrap = document.querySelector('.graph-wrap');
   var track = document.querySelector('[data-graph-track]');
   var stick = document.querySelector('[data-graph-sticky]');
   var runway = document.querySelector('.graph-runway');
-  var canStick = window.matchMedia('(min-width: 820px) and (min-height: 760px) and (prefers-reduced-motion: no-preference)');
+  var canStick = window.matchMedia('(min-width: 820px)');
   var geo = null;        // 几何只在 resize 时量一次;滚动中只做算术,不读布局
   var queued = false;
   var lastP = -1;
@@ -662,6 +774,79 @@ GRAPH_JS = """
 """
 
 JS = """
+// 首屏视频:静音循环预告 + 点开进灯箱看全片
+(function () {
+  var stage = document.querySelector('[data-film-open]');
+  var loop = document.querySelector('[data-film-loop]');
+  var box = document.querySelector('[data-film-box]');
+  var full = document.querySelector('[data-film-full]');
+  if (!stage || !box || !full) return;
+
+  var calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  // 预告只在能看见、且页面在前台时才播 —— 滚走了还在解码是白烧电池
+  if (loop && !calm.matches) {
+    loop.preload = 'auto';
+    var wanted = false;
+    var play = function () {
+      if (!wanted || document.hidden || !box.hidden) return;
+      var p = loop.play();
+      if (p && p.catch) p.catch(function () {});   // 省电模式会拒绝自动播放,保持海报即可
+    };
+    loop.addEventListener('playing', function () { loop.classList.add('is-on'); });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (es) {
+        wanted = es[0].isIntersecting;
+        if (wanted) play(); else loop.pause();
+      }, { threshold: 0.15 }).observe(stage);
+    } else {
+      wanted = true; play();
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) loop.pause(); else play();
+    });
+  }
+
+  var lastFocus = null;
+  function open() {
+    lastFocus = document.activeElement;
+    if (loop) loop.pause();
+    box.hidden = false;   // src 已在 HTML 里,但 preload=none,到这一刻才真去下 6MB
+    // 上屏与加类必须分成两次样式计算,否则过渡不跑。这里用强制回流而不是 rAF ——
+    // 后台/被节流的文档里 rAF 可能一直不触发,灯箱就会开着却是透明的。
+    void box.offsetWidth;
+    box.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    var p = full.play();
+    if (p && p.catch) p.catch(function () {});
+    full.focus({ preventScroll: true });
+  }
+
+  function close() {
+    full.pause();
+    box.classList.remove('is-open');
+    document.body.style.overflow = '';
+    var done = function () {
+      box.hidden = true;
+      if (loop && !calm.matches) {
+        var p = loop.play();
+        if (p && p.catch) p.catch(function () {});
+      }
+      if (lastFocus) lastFocus.focus({ preventScroll: true });
+    };
+    if (calm.matches) done();
+    else setTimeout(done, 300);
+  }
+
+  stage.addEventListener('click', open);
+  box.querySelectorAll('[data-film-close]').forEach(function (el) {
+    el.addEventListener('click', close);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !box.hidden) close();
+  });
+})();
+
 // 配色切换:选择记在 localStorage;没选过就跟随系统(含系统白天/夜间的实时切换)
 (function () {
   var root = document.documentElement;
@@ -758,6 +943,24 @@ if (form) {
   var screenshotPick = form.querySelector('[data-screenshot-pick]');
   var issueList = document.querySelector('[data-issue-list]');
   var issuesRefresh = document.querySelector('[data-issues-refresh]');
+  var issuesMore = document.querySelector('[data-issues-more]');
+  var issueEmpty = document.querySelector('[data-issue-empty]');
+  var issueFilters = document.querySelector('[data-issue-filters]');
+  var contributionPanel = document.querySelector('[data-contribution-panel]');
+  var filterState = document.querySelector('[data-filter-state]');
+  var filterType = document.querySelector('[data-filter-type]');
+  var filterSubmitter = document.querySelector('[data-filter-submitter]');
+  var filterReview = document.querySelector('[data-filter-review]');
+  var filterReset = document.querySelector('[data-filter-reset]');
+  var collapseReplies = document.querySelector('[data-collapse-replies]');
+  var ISSUE_TYPE_NAMES = ['功能', '缺陷', '问题', '建议'];   // 与 build.py 的 ISSUE_TYPES 同步
+  var REVIEW_LABEL = '待审核';                              // 与 intake_service.REVIEW_LABEL 同步
+  var ISSUE_PREVIEW = 8;      // 全量工单一次铺开会把页面撑得很长,先露最近几条
+  var issuesExpanded = false;
+  var refInput = form.querySelector('[data-ref-input]');
+  var refHint = form.querySelector('[data-ref-hint]');
+  var refHintText = refHint ? refHint.textContent : '';
+  var REF_MAX = 5;
 
   function escapeHtml(text) {
     return String(text == null ? '' : text).replace(/[&<>"']/g, function (ch) {
@@ -774,6 +977,176 @@ if (form) {
     }
   }
 
+  function dateKey(value) {
+    var d = new Date(value || '');
+    if (!isFinite(d.getTime())) return '';
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  function addDays(key, offset) {
+    var d = key ? new Date(key + 'T00:00:00') : new Date();
+    d.setDate(d.getDate() + offset);
+    return dateKey(d);
+  }
+
+  function shortDay(key) {
+    if (!key) return '';
+    return key.slice(5).replace('-', '/');
+  }
+
+  function qualityOf(item) {
+    var q = item && item.quality ? item.quality : {};
+    return {
+      score: Math.max(0, Math.min(100, Number(q.score) || 0)),
+      level: q.level === 'high' || q.level === 'medium' || q.level === 'low' ? q.level : 'low',
+      label: q.label || '待补充'
+    };
+  }
+
+  function heatLevel(count, max) {
+    if (!count || !max) return 0;
+    if (count >= max) return 4;
+    if (count / max >= 0.66) return 3;
+    if (count / max >= 0.34) return 2;
+    return 1;
+  }
+
+  function renderContributions(items) {
+    if (!contributionPanel) return;
+    if (!items || !items.length) {
+      contributionPanel.hidden = true;
+      contributionPanel.innerHTML = '';
+      return;
+    }
+    var end = items.map(function (item) { return dateKey(item.created_at); }).filter(Boolean).sort().pop() || dateKey(new Date().toISOString());
+    var days = [];
+    for (var i = 13; i >= 0; i -= 1) days.push(addDays(end, -i));
+
+    var people = {};
+    var qualityCounts = { high: 0, medium: 0, low: 0 };
+    var scoreSum = 0;
+    var replied = 0;
+    var maxCell = 0;
+    items.forEach(function (item) {
+      var name = item.submitter || '未署名';
+      var day = dateKey(item.created_at);
+      var q = qualityOf(item);
+      if (!people[name]) people[name] = { name: name, count: 0, score: 0, high: 0, medium: 0, low: 0, days: {} };
+      people[name].count += 1;
+      people[name].score += q.score;
+      people[name][q.level] += 1;
+      if (day) {
+        people[name].days[day] = (people[name].days[day] || 0) + 1;
+        if (people[name].days[day] > maxCell) maxCell = people[name].days[day];
+      }
+      qualityCounts[q.level] += 1;
+      scoreSum += q.score;
+      if (item.receipt && item.receipt.summary) replied += 1;
+    });
+
+    var contributors = Object.keys(people).map(function (name) { return people[name]; })
+      .sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+    var avg = Math.round(scoreSum / Math.max(items.length, 1));
+    var top = contributors.slice(0, 6).map(function (p) {
+      var avgScore = Math.round(p.score / Math.max(p.count, 1));
+      return '<div class="contributor-card">'
+        + '<strong>' + escapeHtml(p.name) + '</strong>'
+        + '<span><b>' + p.count + '</b> 单 · 均分 ' + avgScore + '</span>'
+        + '<em>高质量 ' + p.high + ' / 可处理 ' + p.medium + ' / 待补充 ' + p.low + '</em>'
+        + '</div>';
+    }).join('');
+    var rows = contributors.map(function (p) {
+      var cells = days.map(function (day) {
+        var count = p.days[day] || 0;
+        return '<i class="heat-cell l' + heatLevel(count, maxCell) + '" title="'
+          + escapeHtml(p.name + ' · ' + day + ' · ' + count + ' 单') + '"></i>';
+      }).join('');
+      return '<div class="heat-row"><span>' + escapeHtml(p.name) + '</span><div>' + cells + '</div></div>';
+    }).join('');
+    var quality = ['high', 'medium', 'low'].map(function (level) {
+      var label = level === 'high' ? '高质量' : (level === 'medium' ? '可处理' : '待补充');
+      var pct = Math.round(qualityCounts[level] / Math.max(items.length, 1) * 100);
+      return '<div class="quality-bar ' + level + '"><span>' + label + '</span><i><b style="width:' + pct + '%"></b></i><strong>' + qualityCounts[level] + '</strong></div>';
+    }).join('');
+
+    contributionPanel.innerHTML = '<div class="contribution-head">'
+      + '<div><span class="eyebrow">贡献图</span><h4>提交分布与反馈质量</h4></div>'
+      + '<div class="contribution-kpis">'
+      + '<span><b>' + items.length + '</b>工单</span>'
+      + '<span><b>' + contributors.length + '</b>人</span>'
+      + '<span><b>' + avg + '</b>质量均分</span>'
+      + '<span><b>' + replied + '</b>已回复</span>'
+      + '</div></div>'
+      + '<div class="contribution-body">'
+      + '<div class="heatmap"><div class="heat-days">' + days.map(function (day) { return '<span>' + shortDay(day) + '</span>'; }).join('') + '</div>' + rows + '</div>'
+      + '<div class="quality-summary">' + quality + '</div>'
+      + '</div>'
+      + '<div class="contributor-grid">' + top + '</div>';
+    contributionPanel.hidden = false;
+  }
+
+  // 关联工单:新工单可以指着老工单说话。只往输入框里塞号码,不做站内回复层级 ——
+  // 正文里的 #12 由 GitHub 自动交叉引用。
+  function parseRefs(text) {
+    var out = [];
+    var found = String(text == null ? '' : text).match(/\\d{1,7}/g) || [];
+    for (var i = 0; i < found.length; i += 1) {
+      var n = parseInt(found[i], 10);
+      if (n > 0 && out.indexOf(n) < 0) out.push(n);
+    }
+    return out.slice(0, REF_MAX);
+  }
+
+  function currentRefs() { return refInput ? parseRefs(refInput.value) : []; }
+
+  function setRefs(list) {
+    if (!refInput) return;
+    refInput.value = list.map(function (n) { return '#' + n; }).join(' ');
+    syncCiteButtons();
+  }
+
+  function refMessage(text, isError) {
+    if (!refHint) return;
+    refHint.textContent = text || refHintText;
+    refHint.classList.toggle('err', !!isError);
+    refHint.classList.toggle('ok', !isError && !!text);
+  }
+
+  function syncCiteButtons() {
+    if (!issueList) return;
+    var refs = currentRefs();
+    var buttons = issueList.querySelectorAll('[data-cite]');
+    for (var i = 0; i < buttons.length; i += 1) {
+      var cited = refs.indexOf(parseInt(buttons[i].getAttribute('data-cite'), 10)) >= 0;
+      buttons[i].classList.toggle('done', cited);
+      buttons[i].textContent = cited ? '已引用' : '引用';
+    }
+  }
+
+  function citeIssue(number) {
+    if (!refInput || !(number > 0)) return;
+    var refs = currentRefs();
+    var at = refs.indexOf(number);
+    if (at >= 0) {                       // 再点一次 = 取消引用,不用回表单里删字
+      refs.splice(at, 1);
+      setRefs(refs);
+      refMessage('已取消引用 #' + number, false);
+      return;
+    }
+    if (refs.length >= REF_MAX) {
+      refMessage('最多关联 ' + REF_MAX + ' 条工单', true);
+      return;
+    }
+    refs.push(number);
+    setRefs(refs);
+    refMessage('已关联 #' + number, false);
+    refInput.classList.add('flash');
+    setTimeout(function () { refInput.classList.remove('flash'); }, 900);
+    if (refInput.scrollIntoView) refInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
   function renderIssues(items) {
     if (!issueList) return;
     if (!items || !items.length) {
@@ -782,8 +1155,18 @@ if (form) {
     }
     issueList.innerHTML = items.map(function (item) {
       var labels = (item.labels || []).filter(function (name) { return name !== 'intake'; })
-        .map(function (name) { return '<span class="mini-label">' + escapeHtml(name) + '</span>'; }).join('');
+        .map(function (name) {
+          var cls = name === REVIEW_LABEL ? ' review' : '';
+          return '<span class="mini-label' + cls + '">' + escapeHtml(name) + '</span>';
+        }).join('');
+      // 标签可能被人在 GitHub 上摘掉,正文里的声明还在 —— 那也要显示出来
+      if (item.needs_review && (item.labels || []).indexOf(REVIEW_LABEL) < 0) {
+        labels += '<span class="mini-label review">' + REVIEW_LABEL + '</span>';
+      }
       if (item.milestone) labels += '<span class="mini-label milestone">' + escapeHtml(item.milestone) + '</span>';
+      if (item.quality && item.quality.label) {
+        labels += '<span class="mini-label quality ' + escapeHtml(item.quality.level || 'low') + '">' + escapeHtml(item.quality.label) + '</span>';
+      }
       // 回复是这块最有价值的内容,给它独立的答复块而不是挤在一行里截断
       var reply = '';
       if (item.receipt && item.receipt.summary) {
@@ -796,17 +1179,89 @@ if (form) {
           + '</a>';
       }
       var state = item.state === 'closed' ? '已关闭' : '处理中';
-      return '<div class="issue-item' + (reply ? ' has-reply' : '') + '">'
+      // 筛选要用的三个维度直接挂在元素上:列表就是数据源,不再另存一份
+      return '<div class="issue-item' + (reply ? ' has-reply' : '') + (item.needs_review ? ' needs-review' : '') + '"'
+        + ' data-state="' + escapeHtml(item.state) + '"'
+        + ' data-type="' + escapeHtml(issueType(item)) + '"'
+        + ' data-submitter="' + escapeHtml(item.submitter || '') + '"'
+        + ' data-review="' + (item.needs_review ? '1' : '') + '">'
         + '<span class="issue-no">#' + escapeHtml(item.number) + '</span>'
         + '<span class="issue-main"><strong><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.title) + '</a></strong><span class="issue-tags">' + labels + '</span>' + reply + '</span>'
-        + '<span class="issue-side"><em class="state ' + escapeHtml(item.state) + '">' + state + '</em><time>' + escapeHtml(formatDate(item.created_at)) + '</time></span>'
+        + '<span class="issue-side"><em class="state ' + escapeHtml(item.state) + '">' + state + '</em><time>' + escapeHtml(formatDate(item.created_at)) + '</time>'
+        + '<button type="button" class="cite-btn" data-cite="' + escapeHtml(item.number) + '" title="在新工单里引用 #' + escapeHtml(item.number) + '">引用</button></span>'
         + '</div>';
     }).join('');
+    renderContributions(items);
+    fillSubmitters(items);
+    if (issueFilters) issueFilters.hidden = false;
+    applyIssueView();
+    syncCiteButtons();
+  }
+
+  // 类型取四选一那枚标签(其余是 P:x / 待审核 / milestone,不是类型)
+  function issueType(item) {
+    var names = item.labels || [];
+    for (var i = 0; i < names.length; i += 1) {
+      if (ISSUE_TYPE_NAMES.indexOf(names[i]) >= 0) return names[i];
+    }
+    return '';
+  }
+
+  function fillSubmitters(items) {
+    if (!filterSubmitter) return;
+    var kept = filterSubmitter.value;
+    var names = [];
+    for (var i = 0; i < items.length; i += 1) {
+      var name = items[i].submitter;
+      if (name && names.indexOf(name) < 0) names.push(name);
+    }
+    names.sort();
+    filterSubmitter.innerHTML = '<option value="">全部提出者</option>'
+      + names.map(function (n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
+    if (names.indexOf(kept) >= 0) filterSubmitter.value = kept;   // 刷新不该把已选的筛选条件弄丢
+  }
+
+  function filterValues() {
+    return {
+      state: filterState ? filterState.value : '',
+      type: filterType ? filterType.value : '',
+      submitter: filterSubmitter ? filterSubmitter.value : '',
+      review: !!(filterReview && filterReview.checked)
+    };
+  }
+
+  // 筛选先跑,折叠再跑:「展开全部 N 条」里的 N 说的是筛完还剩几条
+  function applyIssueView() {
+    if (!issueList) return;
+    var f = filterValues();
+    var active = !!(f.state || f.type || f.submitter || f.review);
+    var items = issueList.querySelectorAll('.issue-item');
+    var matched = 0;
+    for (var i = 0; i < items.length; i += 1) {
+      var el = items[i];
+      var ok = (!f.state || el.getAttribute('data-state') === f.state)
+        && (!f.type || el.getAttribute('data-type') === f.type)
+        && (!f.submitter || el.getAttribute('data-submitter') === f.submitter)
+        && (!f.review || el.getAttribute('data-review') === '1');
+      if (!ok) { el.hidden = true; continue; }
+      matched += 1;
+      el.hidden = !issuesExpanded && matched > ISSUE_PREVIEW;
+    }
+    if (issueEmpty) issueEmpty.hidden = matched > 0 || !items.length;
+    if (filterReset) filterReset.hidden = !active;
+    if (issuesMore) {
+      issuesMore.hidden = matched <= ISSUE_PREVIEW;
+      issuesMore.textContent = issuesExpanded ? '收起' : '展开全部 ' + matched + ' 条';
+    }
   }
 
   function loadIssues() {
     if (!issueList) return;
     issueList.innerHTML = '<p class="empty">正在读取...</p>';
+    if (issuesMore) issuesMore.hidden = true;
+    if (issueEmpty) issueEmpty.hidden = true;
+    if (issueFilters) issueFilters.hidden = true;
+    if (contributionPanel) contributionPanel.hidden = true;
     fetch('/api/intake/issues')
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
@@ -886,6 +1341,53 @@ if (form) {
   if (screenshotRemove) screenshotRemove.addEventListener('click', clearScreenshot);
   if (issuesRefresh) issuesRefresh.addEventListener('click', loadIssues);
 
+  [filterState, filterType, filterSubmitter, filterReview].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('change', function () {
+      issuesExpanded = false;      // 换了筛选条件就回到「先看前几条」
+      applyIssueView();
+    });
+  });
+
+  if (filterReset) {
+    filterReset.addEventListener('click', function () {
+      if (filterState) filterState.value = '';
+      if (filterType) filterType.value = '';
+      if (filterSubmitter) filterSubmitter.value = '';
+      if (filterReview) filterReview.checked = false;
+      issuesExpanded = false;
+      applyIssueView();
+    });
+  }
+
+  if (collapseReplies && issueList) {
+    collapseReplies.addEventListener('change', function () {
+      issueList.classList.toggle('replies-off', collapseReplies.checked);
+    });
+  }
+
+  if (issuesMore) {
+    issuesMore.addEventListener('click', function () {
+      issuesExpanded = !issuesExpanded;
+      applyIssueView();
+      if (!issuesExpanded && issueList.scrollIntoView) issueList.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }
+
+  if (issueList) {
+    issueList.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-cite]') : null;
+      if (!btn) return;
+      e.preventDefault();
+      citeIssue(parseInt(btn.getAttribute('data-cite'), 10));
+    });
+  }
+
+  if (refInput) {
+    refInput.addEventListener('input', function () { refMessage('', false); syncCiteButtons(); });
+    refInput.addEventListener('blur', function () { setRefs(currentRefs()); });
+  }
+
   if (screenshotZone) {
     screenshotZone.addEventListener('click', function (e) {
       if (e.target === screenshotPick) return;
@@ -939,6 +1441,7 @@ if (form) {
             : '已收到 ✔ 谢谢!(后台稍后同步)';
           form.reset();
           clearScreenshot();
+          refMessage('', false);
           loadIssues();
         } else {
           out.className = 'result err'; out.textContent = '提交失败:' + (res.d.error || '请稍后重试');
@@ -956,17 +1459,21 @@ if (form) {
 def main() -> None:
     packets = load_packets()
     showcase = load_showcase()
+    film = load_hero_film()
     css = CSS_FILE.read_text(encoding="utf-8") if CSS_FILE.exists() else ""
     DIST.mkdir(parents=True, exist_ok=True)
     snapshots = copy_snapshots(showcase)
-    (DIST / "index.html").write_text(render_page(packets, showcase, css), encoding="utf-8")
+    media = copy_media(film)
+    (DIST / "index.html").write_text(render_page(packets, showcase, css, film), encoding="utf-8")
     print(f"✔ 单文件生成 {len(packets)} 张卡片 / {len(showcase)} 项成果 → {(DIST / 'index.html').relative_to(ROOT.parent)}")
     for name, snap_date in snapshots:
         print(f"  快照 {name}(源修改于 {snap_date})")
+    for name in media:
+        print(f"  首屏视频 {name}({(DIST / name).stat().st_size / 1024:.0f} KB)")
     print(f"  生成日期 {date.today()};工单 → 同源 /api/intake")
-    if snapshots:
-        names = " ".join(n for n, _ in snapshots)
-        print(f"  部署需上传:index.html {names}")
+    extras = [n for n, _ in snapshots] + media
+    if extras:
+        print(f"  部署需上传:index.html {' '.join(extras)}")
 
 
 if __name__ == "__main__":

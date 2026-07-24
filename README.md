@@ -130,17 +130,15 @@ pip install -r requirements.txt
 
 当前仓库已经实现 `docs/BUILD_SPEC.md` 中的 M0-M6 初版链路。默认没有真实聚源数据时,系统会使用 deterministic synthetic data 做工程验证;这些结果只用于证明流程正确,不代表真实市场结论。
 
-一键运行完整可复现实验:
+运行确定性基线实验:
 
 ```bash
-python -m src --rounds 1 --per-round 2
+python -m src
 ```
 
-只运行确定性基线因子,跳过 LLM/Agent:
-
-```bash
-python -m src --skip-agent
-```
+Agent 候选生成不再从未确认的命令行参数直接启动。调用方必须先确认 `ResearchRequest`,通过
+确定性 capability preflight 并取得 `ExecutionPermit`;`run_loop` 会拒绝缺少许可的调用。实际运行接口由
+研究任务服务承接,确定性基线仍可独立复现。
 
 运行后主要产物:
 
@@ -184,7 +182,7 @@ export ALPHA_AGENT_LLM_BACKEND=api
 export OPENAI_API_KEY=...
 export OPENAI_BASE_URL=https://api.openai.com/v1  # 可选
 export ALPHA_AGENT_LLM_MODEL=gpt-4.1-mini
-python -m src --rounds 1 --per-round 3
+# 完成研究合同确认与 capability preflight 后,由研究任务服务传入 ExecutionPermit
 ```
 
 本地 OpenAI-compatible 服务,例如 vLLM/Ollama 代理:
@@ -194,7 +192,7 @@ export ALPHA_AGENT_LLM_BACKEND=local
 export ALPHA_AGENT_LOCAL_BASE_URL=http://localhost:8000/v1
 export ALPHA_AGENT_LOCAL_API_KEY=EMPTY
 export ALPHA_AGENT_LLM_MODEL=Qwen2.5-7B-Instruct
-python -m src --rounds 1 --per-round 3
+# 完成研究合同确认与 capability preflight 后,由研究任务服务传入 ExecutionPermit
 ```
 
 模型调参优先级:先调 prompt、JSON 输出约束、temperature/max_tokens 和规则校验;只有在候选输出长期不稳定且积累了足够高质量样本后,才考虑 LoRA 微调。详见 `docs/MODEL_STRATEGY.md`。

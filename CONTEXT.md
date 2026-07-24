@@ -101,8 +101,16 @@ The lightweight form used to collect questions and suggestions — primarily fro
 _Avoid_: free-form chat, full project-management form
 
 **Intake Fields**:
-The accepted field set for the project intake form: submitter name, title, description, attachment, related idea packet, type, and priority. The version field from the reference form is omitted, and product is replaced by related idea packet.
-_Avoid_: product version, oversized survey
+The accepted field set for the project intake form: submitter name, title, description, attachment, screenshot, related issues, needs-review flag, type, and priority. The version field from the reference form is omitted, and product is replaced by related issues.
+_Avoid_: product version, oversized survey, related idea packet
+
+**Needs Review**:
+A flag the submitter sets to say the ticket's content is not verified — typically a conclusion reached in discussion with an AI — and should be reviewed by another member before anyone acts on it. It becomes the `待审核` GitHub label and a stated line in the issue body, and the site can filter on it.
+_Avoid_: approval workflow, blocking gate, reviewer assignment
+
+**Related Issues**:
+Numbers of earlier intake tickets that a new ticket points at, typed by hand or picked with the 「引用」 button on the history list (at most five). They are written into the issue body as `#N` so GitHub creates the cross-reference itself. Referencing is the only relation the platform offers — there is deliberately no in-site reply thread or parent/child hierarchy.
+_Avoid_: reply thread, sub-issue, comment feature
 
 **Convenience Intake**:
 The issue intake flow as a practical convenience for teammates, not the main proof of capability or the main social artifact.

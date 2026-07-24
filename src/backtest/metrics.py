@@ -69,23 +69,38 @@ def long_short_return(quantile_ret: pd.DataFrame) -> pd.Series:
     return ls
 
 
-def turnover(factor: pd.Series, n: int = 10) -> pd.Series:
+def long_short_weights(factor: pd.Series, n: int = 10) -> pd.Series:
     data = factor.rename("factor").dropna().to_frame().sort_index()
     if data.empty:
-        return pd.Series(dtype=float, name="turnover")
+        return pd.Series(dtype=float, name="weight")
     data["quantile"] = data.groupby(level="date", group_keys=False).apply(lambda g: _quantile_labels(g, n))
-    weights_by_date: dict[pd.Timestamp, pd.Series] = {}
+    rows: list[pd.Series] = []
     for date, group in data.dropna(subset=["quantile"]).groupby(level="date"):
         low = group["quantile"].min()
         high = group["quantile"].max()
-        holdings = pd.Series(0.0, index=group.index.get_level_values("code"))
+        codes = group.index.get_level_values("code")
+        weights = pd.Series(0.0, index=pd.MultiIndex.from_product([[date], codes], names=["date", "code"]))
         long_codes = group.loc[group["quantile"] == high].index.get_level_values("code")
         short_codes = group.loc[group["quantile"] == low].index.get_level_values("code")
         if len(long_codes) > 0:
-            holdings.loc[long_codes] = 1.0 / len(long_codes)
+            weights.loc[(date, long_codes)] = 1.0 / len(long_codes)
         if len(short_codes) > 0:
-            holdings.loc[short_codes] -= 1.0 / len(short_codes)
-        weights_by_date[pd.Timestamp(date)] = holdings
+            weights.loc[(date, short_codes)] = -1.0 / len(short_codes)
+        rows.append(weights)
+    if not rows:
+        return pd.Series(dtype=float, name="weight")
+    out = pd.concat(rows).sort_index()
+    out.name = "weight"
+    return out
+
+
+def turnover(factor: pd.Series, n: int = 10) -> pd.Series:
+    weights = long_short_weights(factor, n=n)
+    if weights.empty:
+        return pd.Series(dtype=float, name="turnover")
+    weights_by_date: dict[pd.Timestamp, pd.Series] = {}
+    for date, group in weights.groupby(level="date"):
+        weights_by_date[pd.Timestamp(date)] = group.droplevel("date")
 
     turns: list[tuple[pd.Timestamp, float]] = []
     previous: pd.Series | None = None

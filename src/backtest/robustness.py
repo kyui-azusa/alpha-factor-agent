@@ -16,12 +16,12 @@ def robustness_policy(cost_bps: float, n_quantiles: int, forward_column: str) ->
         "default_cost_bps": cost_bps,
         "default_n_quantiles": n_quantiles,
         "default_forward_column": forward_column,
-        "cost_convention": "net_long_short = long_short - turnover * cost_bps / 10000; cost_bps is a scenario parameter, not a full broker-fee, tax, or market-impact model.",
+        "cost_convention": "Legacy net_long_short uses turnover * scenario cost_bps; executable_net_long_short uses the deterministic A-share component ledger reported with feasible holdings.",
         "cost_bps_grid": COST_BPS_GRID,
         "a_share_reality_checks": {
-            "stamp_duty_sell_side_bps_reference": 100.0,
+            "stamp_duty_sell_side_bps_reference": 10.0,
             "high_cost_scenarios_included": True,
-            "missing_frictions": ["market_impact", "borrow_cost", "slippage", "order_queue_priority"],
+            "missing_frictions": ["order_queue_priority"],
         },
         "n_quantiles_grid": [3, 5, 10],
         "forward_column_grid": FORWARD_COLUMN_GRID,
@@ -31,7 +31,7 @@ def robustness_policy(cost_bps: float, n_quantiles: int, forward_column: str) ->
             "max_time_window": MAX_TIME_WINDOW,
         },
         "allowed_functions": sorted(FACTOR_FUNCTIONS),
-        "note": "This deterministic policy declares robustness dimensions to sweep outside the LLM path; high-cost A-share scenarios should be read as sensitivity checks until a richer execution-cost model is added.",
+        "note": "The deterministic A-share cost ledger is reported alongside the legacy scenario sensitivity grid; neither path calls an LLM.",
     }
 
 
@@ -154,6 +154,7 @@ def robustness_summary(
     rank_ic_series: pd.Series,
     novelty: dict[str, Any] | None = None,
     horizon_sensitivity: dict[str, Any] | None = None,
+    robustness_layers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     novelty = novelty or {}
     max_corr = float(novelty.get("max_abs_existing_corr", 0.0) or 0.0)
@@ -171,6 +172,12 @@ def robustness_summary(
         else:
             overfit_risk = "low"
     regime = regime_split_summary(rank_ic_series)
+    robustness_layers = robustness_layers or {}
+    market_regime = robustness_layers.get("market_regime", {}) if isinstance(robustness_layers, dict) else {}
+    industry = robustness_layers.get("industry", {}) if isinstance(robustness_layers, dict) else {}
+    style = robustness_layers.get("style", {}) if isinstance(robustness_layers, dict) else {}
+    universe = robustness_layers.get("universe", {}) if isinstance(robustness_layers, dict) else {}
+    rebalance_frequency = robustness_layers.get("rebalance_frequency", {}) if isinstance(robustness_layers, dict) else {}
     cost = _cost_sensitivity(summary)
     cost_grid = cost_sensitivity_grid(summary)
     tradable_net = tradability.get("tradable_net_long_short_mean") if isinstance(tradability, dict) else None
@@ -187,8 +194,19 @@ def robustness_summary(
         "walk_forward_stability": _walk_forward_risk(walk_forward),
         "regime_dependency": regime["status"],
         "regime_slices": regime["windows"],
-        "universe_stability": "not_tested_requires_multiple_universes",
-        "industry_stability": "not_tested_requires_industry_field",
+        "market_regime_stability": market_regime.get("status", "not_tested_requires_market_regime_slices"),
+        "market_regime_slices": market_regime.get("slices", []),
+        "universe_stability": universe.get("status", "not_tested_requires_universe_or_liquidity_slices"),
+        "universe_slices": universe.get("slices", []),
+        "industry_stability": industry.get("status", "not_tested_requires_industry_field"),
+        "industry_slices": industry.get("slices", []),
+        "style_stability": {
+            "size": style.get("size", {}).get("status", "not_tested_requires_mktcap_field") if isinstance(style, dict) else "not_tested_requires_mktcap_field",
+            "liquidity": style.get("liquidity", {}).get("status", "not_tested_requires_amount_field") if isinstance(style, dict) else "not_tested_requires_amount_field",
+        },
+        "style_slices": style,
+        "rebalance_frequency_stability": rebalance_frequency.get("status", "not_tested_requires_rebalance_frequency_run"),
+        "rebalance_frequency_slices": rebalance_frequency.get("slices", []),
         "horizon_stability": _horizon_stability(horizon_sensitivity),
         "horizon_sensitivity": horizon_sensitivity or {"status": "not_tested_requires_forward_column_grid_run", "windows": []},
         "cost_sensitivity": cost,
@@ -198,6 +216,8 @@ def robustness_summary(
     }
     report["robustness_summary"] = (
         f"similarity={report['similarity_risk']}; overfit={report['overfit_risk']}; "
-        f"walk_forward={report['walk_forward_stability']}; regime={report['regime_dependency']}; cost={report['cost_sensitivity']}"
+        f"walk_forward={report['walk_forward_stability']}; regime={report['regime_dependency']}; "
+        f"market_regime={report['market_regime_stability']}; industry={report['industry_stability']}; "
+        f"cost={report['cost_sensitivity']}"
     )
     return report

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.agents.knowledge_base import field_index, load_knowledge_base
 from src.utils.field_availability import get_field_availability
 
 
@@ -60,7 +61,7 @@ SEED_FACTORS: list[dict[str, Any]] = [
 
 
 A_SHARE_PRIORS = [
-    "财务字段必须通过 ann_date 做点时间合并; report_period 不能替代公告日。",
+    "财务字段必须按信息可用时点与信号时点做点时间合并; 只有 ann_date 时保守延至下一交易日,report_period 不能替代公告时点。",
     "生成阶段不得读取真实历史数值、个股轨迹、未来收益或样本外回测结果。",
     "广义 Alpha 假设必须标注是否当前可回测; 缺字段或需外部数据的想法不能伪装成已回测因子。",
     "盈利质量、估值、动量、波动率、流动性等方向需说明经济机制和常见风险暴露。",
@@ -75,7 +76,7 @@ SYNTHESIS_METHODS: list[dict[str, str]] = [
     },
     {
         "name": "conditional_gate",
-        "description": "Activate or penalize a seed signal through another observable condition, such as leverage or liquidity risk.",
+        "description": "Use where() with an audited binary regime field to switch between two fixed signals; the regime definition is deterministic and lagged.",
     },
     {
         "name": "risk_adjustment",
@@ -114,19 +115,28 @@ def seed_factor_lineage() -> list[dict[str, Any]]:
 
 
 def field_catalog(panel) -> list[dict[str, Any]]:
+    knowledge_fields = field_index()
     availability = get_field_availability(panel)
     catalog: list[dict[str, Any]] = []
     for column, dtype in panel.dtypes.items():
+        record = knowledge_fields.get(column)
+        if record is None or not record["backtestable"]:
+            continue
         meta = availability.get(column, {})
         catalog.append(
             {
                 "field": column,
+                "label": record["label"],
                 "dtype": str(dtype),
-                "source": meta.get("source", "unknown"),
+                "source": meta.get("source", record["source_id"]),
+                "knowledge_source_id": record["source_id"],
+                "source_table": record["source_table"],
                 "available_date": meta.get("available_date", "unknown"),
                 "pit_rule": meta.get("rule", "metadata missing"),
                 "pit_protected": bool(meta.get("pit_protected", False)),
                 "missing_policy": _missing_policy(column, meta),
+                "usage_boundary": record["usage_boundary"],
+                "risks": record["risks"],
             }
         )
     return catalog
@@ -144,8 +154,14 @@ def _missing_policy(column: str, meta: dict[str, Any]) -> str:
 
 
 def generation_context(panel) -> dict[str, Any]:
+    knowledge = load_knowledge_base()
     return {
+        "knowledge_version": knowledge["knowledge_version"],
+        "knowledge_scope": knowledge["scope"],
+        "knowledge_sources": knowledge["sources"],
         "field_catalog": field_catalog(panel),
+        "factor_priors": knowledge["factor_priors"],
+        "institution_rules": knowledge["institution_rules"],
         "seed_factors": SEED_FACTORS,
         "seed_factor_lineage": seed_factor_lineage(),
         "synthesis_methods": SYNTHESIS_METHODS,

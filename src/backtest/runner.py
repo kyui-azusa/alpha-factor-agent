@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
+import numpy as np
 import pandas as pd
 
-from src.backtest.metrics import ic_ir, long_short_return, quantile_returns, rank_ic, turnover
+from src.backtest.costs import AShareCostModel, apply_execution_costs
+from src.backtest.metrics import ic_ir, long_short_return, long_short_weights, quantile_returns, rank_ic, turnover
 from src.backtest.robustness import FORWARD_COLUMN_GRID, robustness_policy, robustness_summary
 from src.config import CONFIG, Config
 from src.factors.engine import FactorExpr, evaluate, expression_names
@@ -12,6 +15,11 @@ from src.utils.field_availability import validate_field_availability
 
 
 RAW_TABLES = ("prices", "fundamentals", "universe")
+ADV_WINDOW = 20
+ADV_MIN_PERIODS = 1
+MIN_ADV_NOTIONAL = 1_000_000.0
+PORTFOLIO_VALUE = 100_000_000.0
+MAX_PARTICIPATION_RATE = 0.10
 
 
 def _ic_inference(ic: pd.Series) -> dict:
@@ -194,6 +202,238 @@ def _horizon_sensitivity_metrics(
     }
 
 
+def _stability_from_summaries(summaries: list[dict[str, Any]], *, minimum_slices: int = 2) -> str:
+    usable = [item for item in summaries if not pd.isna(item.get("ic_mean")) and int(item.get("observations", 0) or 0) > 0]
+    if len(usable) < minimum_slices:
+        return "insufficient_slices"
+    signs = {1 if item["ic_mean"] > 0 else -1 if item["ic_mean"] < 0 else 0 for item in usable}
+    if len(signs - {0}) > 1:
+        return "unstable_mixed_signs"
+    magnitudes = [abs(float(item["ic_mean"])) for item in usable]
+    if magnitudes and min(magnitudes) < max(magnitudes) * 0.25:
+        return "partially_stable_weak_slice"
+    return "stable_directional_slices"
+
+
+def _slice_summary(
+    name: str,
+    factor: pd.Series,
+    returns: pd.Series,
+    cfg: Config,
+    n_quantiles: int,
+    train_end: pd.Timestamp,
+    segment: str,
+) -> dict[str, Any]:
+    summary = _metrics_for_slice(name, factor, returns, cfg, n_quantiles, train_end, segment)["summary"]
+    return summary
+
+
+def _date_level(series: pd.Series) -> pd.Index:
+    return series.index.get_level_values("date")
+
+
+def _market_regime_metrics(
+    name: str,
+    factor: pd.Series,
+    returns: pd.Series,
+    cfg: Config,
+    n_quantiles: int,
+    train_end: pd.Timestamp,
+) -> dict[str, Any]:
+    oos_returns = returns.loc[_date_level(returns) > train_end].dropna()
+    if oos_returns.empty:
+        return {"status": "insufficient_oos_returns", "slices": []}
+    market = oos_returns.groupby(level="date").mean().sort_index()
+    if market.shape[0] < 10 or market.nunique() < 3:
+        return {"status": "insufficient_market_state_variation", "slices": []}
+    low = market.quantile(1.0 / 3.0)
+    high = market.quantile(2.0 / 3.0)
+    labels = pd.Series("sideways", index=market.index, dtype="object")
+    labels.loc[market <= low] = "bear"
+    labels.loc[market >= high] = "bull"
+
+    slices: list[dict[str, Any]] = []
+    factor_dates = _date_level(factor)
+    return_dates = _date_level(returns)
+    for label in ("bear", "sideways", "bull"):
+        dates = labels.index[labels == label]
+        if dates.empty:
+            continue
+        selected_factor = factor.loc[factor_dates.isin(dates)]
+        selected_returns = returns.loc[return_dates.isin(dates)]
+        summary = _slice_summary(name, selected_factor, selected_returns, cfg, n_quantiles, train_end, f"market_regime_{label}")
+        summary["regime"] = label
+        summary["market_return_mean"] = float(market.loc[dates].mean())
+        slices.append(summary)
+    return {
+        "status": _stability_from_summaries(slices),
+        "method": "oos_cross_sectional_forward_return_terciles_for_evaluation_slicing",
+        "slices": slices,
+    }
+
+
+def _categorical_slice_metrics(
+    name: str,
+    factor: pd.Series,
+    returns: pd.Series,
+    panel: pd.DataFrame,
+    cfg: Config,
+    n_quantiles: int,
+    train_end: pd.Timestamp,
+    *,
+    column: str,
+    label_key: str,
+    max_slices: int = 12,
+) -> dict[str, Any]:
+    if column not in panel.columns:
+        return {"status": f"not_tested_requires_{column}_field", "slices": []}
+    aligned = pd.concat(
+        [factor.rename("factor"), returns.rename("fwd_ret"), panel[column].rename(column)],
+        axis=1,
+    ).dropna(subset=["factor", "fwd_ret", column])
+    aligned = aligned.loc[aligned.index.get_level_values("date") > train_end]
+    if aligned.empty:
+        return {"status": "insufficient_oos_observations", "slices": []}
+    counts = aligned[column].astype(str).value_counts().head(max_slices)
+    slices: list[dict[str, Any]] = []
+    for value in counts.index:
+        selected = aligned.loc[aligned[column].astype(str) == value]
+        summary = _slice_summary(name, selected["factor"], selected["fwd_ret"], cfg, n_quantiles, train_end, f"{column}_{value}")
+        summary[label_key] = value
+        slices.append(summary)
+    return {"status": _stability_from_summaries(slices), "slices": slices}
+
+
+def _cross_sectional_bucket_series(values: pd.Series, labels: tuple[str, str, str]) -> pd.Series:
+    numeric = pd.to_numeric(values, errors="coerce")
+
+    def one_day(group: pd.Series) -> pd.Series:
+        clean = group.dropna()
+        out = pd.Series(np.nan, index=group.index, dtype="object")
+        if clean.nunique() < 3 or clean.shape[0] < 3:
+            return out
+        try:
+            bucketed = pd.qcut(clean.rank(method="first"), q=3, labels=labels).astype("object")
+        except ValueError:
+            return out
+        out.loc[bucketed.index] = bucketed
+        return out
+
+    bucket = numeric.groupby(level="date", group_keys=False).apply(one_day)
+    bucket.name = values.name
+    return bucket
+
+
+def _bucket_slice_metrics(
+    name: str,
+    factor: pd.Series,
+    returns: pd.Series,
+    panel: pd.DataFrame,
+    cfg: Config,
+    n_quantiles: int,
+    train_end: pd.Timestamp,
+    *,
+    column: str,
+    labels: tuple[str, str, str],
+    segment_name: str,
+) -> dict[str, Any]:
+    if column not in panel.columns:
+        return {"status": f"not_tested_requires_{column}_field", "slices": []}
+    buckets = _cross_sectional_bucket_series(panel[column].rename(segment_name), labels)
+    aligned = pd.concat([factor.rename("factor"), returns.rename("fwd_ret"), buckets.rename("bucket")], axis=1).dropna()
+    aligned = aligned.loc[aligned.index.get_level_values("date") > train_end]
+    if aligned.empty:
+        return {"status": "insufficient_oos_observations", "slices": []}
+    slices: list[dict[str, Any]] = []
+    for label in labels:
+        selected = aligned.loc[aligned["bucket"] == label]
+        if selected.empty:
+            continue
+        summary = _slice_summary(name, selected["factor"], selected["fwd_ret"], cfg, n_quantiles, train_end, f"{segment_name}_{label}")
+        summary[segment_name] = label
+        slices.append(summary)
+    return {"status": _stability_from_summaries(slices), "slices": slices}
+
+
+def _rebalance_frequency_metrics(
+    name: str,
+    factor: pd.Series,
+    returns: pd.Series,
+    cfg: Config,
+    n_quantiles: int,
+    train_end: pd.Timestamp,
+    *,
+    frequencies: tuple[int, ...] = (1, 5, 20),
+) -> dict[str, Any]:
+    dates = pd.Index(factor.index.get_level_values("date").unique()).sort_values()
+    oos_dates = dates[dates > train_end]
+    summaries: list[dict[str, Any]] = []
+    for frequency in frequencies:
+        rebalance_dates = set(oos_dates[::frequency])
+        factor_dates = _date_level(factor)
+        sampled_factor = factor.where(factor_dates.isin(rebalance_dates))
+        summary = _segment_metrics(name, sampled_factor, returns, cfg, n_quantiles, train_end, f"oos_rebalance_{frequency}d")["summary"]
+        summary["rebalance_frequency_days"] = int(frequency)
+        summaries.append(summary)
+    return {"status": _stability_from_summaries(summaries), "slices": summaries}
+
+
+def _robustness_layers(
+    name: str,
+    factor: pd.Series,
+    returns: pd.Series,
+    panel: pd.DataFrame,
+    cfg: Config,
+    n_quantiles: int,
+    train_end: pd.Timestamp,
+) -> dict[str, Any]:
+    industry = _categorical_slice_metrics(
+        name,
+        factor,
+        returns,
+        panel,
+        cfg,
+        n_quantiles,
+        train_end,
+        column="industry",
+        label_key="industry",
+    )
+    size = _bucket_slice_metrics(
+        name,
+        factor,
+        returns,
+        panel,
+        cfg,
+        n_quantiles,
+        train_end,
+        column="mktcap",
+        labels=("small", "mid", "large"),
+        segment_name="size_bucket",
+    )
+    liquidity = _bucket_slice_metrics(
+        name,
+        factor,
+        returns,
+        panel,
+        cfg,
+        n_quantiles,
+        train_end,
+        column="amount",
+        labels=("low_liquidity", "mid_liquidity", "high_liquidity"),
+        segment_name="liquidity_bucket",
+    )
+    return {
+        "market_regime": _market_regime_metrics(name, factor, returns, cfg, n_quantiles, train_end),
+        "industry": industry,
+        "style": {
+            "size": size,
+            "liquidity": liquidity,
+        },
+        "universe": liquidity,
+        "rebalance_frequency": _rebalance_frequency_metrics(name, factor, returns, cfg, n_quantiles, train_end),
+    }
+
+
 def _raw_table_presence(cfg: Config) -> dict[str, bool]:
     return {
         table: any((cfg.raw_dir / f"{table}.{suffix}").exists() for suffix in ("parquet", "csv", "pkl"))
@@ -241,11 +481,207 @@ def _tradability_mask(panel: pd.DataFrame) -> tuple[pd.Series, list[str], list[s
         ("limit_down", "not_limit_down"),
     ):
         if column in panel.columns:
-            mask &= ~panel[column].fillna(False).astype(bool)
+            blocked = panel[column].reindex(panel.index).eq(True)
+            mask &= ~blocked
             constraints.append(constraint)
         else:
             missing.append(column)
     return mask, constraints, missing
+
+
+def _shifted_adv(amount: pd.Series, *, window: int = ADV_WINDOW, min_periods: int = ADV_MIN_PERIODS) -> pd.Series:
+    numeric = pd.to_numeric(amount, errors="coerce").sort_index()
+    adv = numeric.groupby(level="code", group_keys=False).transform(
+        lambda item: item.rolling(window=window, min_periods=min_periods).mean().shift(1)
+    )
+    adv.name = "adv"
+    return adv.sort_index()
+
+
+def _bool_column(panel: pd.DataFrame, column: str, index: pd.Index) -> pd.Series:
+    if column not in panel.columns:
+        return pd.Series(False, index=index)
+    return panel[column].reindex(index).eq(True)
+
+
+def _execution_review(
+    factor: pd.Series,
+    returns: pd.Series,
+    panel: pd.DataFrame,
+    cfg: Config,
+    n_quantiles: int,
+    train_end: pd.Timestamp,
+) -> dict[str, Any]:
+    target_weights = long_short_weights(factor, n=n_quantiles)
+    cost_model = AShareCostModel(portfolio_nav=PORTFOLIO_VALUE)
+    if target_weights.empty:
+        return {
+            "order_constraints": [],
+            "portfolio_value": PORTFOLIO_VALUE,
+            "max_participation_rate": MAX_PARTICIPATION_RATE,
+            "adv_window": ADV_WINDOW,
+            "min_adv_notional": MIN_ADV_NOTIONAL,
+            "submitted_notional": 0.0,
+            "executed_notional": 0.0,
+            "blocked_buy_notional": 0.0,
+            "blocked_sell_notional": 0.0,
+            "liquidity_blocked_notional": 0.0,
+            "partial_fill_notional": 0.0,
+            "fill_rate_mean": float("nan"),
+            "impact_cost_mean": float("nan"),
+            "impact_coverage_mean": float("nan"),
+            "cost_total_mean": float("nan"),
+            "cost_component_means": {},
+            "cost_component_totals": {},
+            "cost_model_assumptions": cost_model.to_dict(),
+            "execution_turnover_mean": float("nan"),
+            "executable_long_short_mean": float("nan"),
+            "executable_net_long_short_mean": float("nan"),
+            "executable_long_short": pd.Series(dtype=float, name="executable_long_short"),
+            "executable_net_long_short": pd.Series(dtype=float, name="executable_net_long_short"),
+            "feasible_weights": pd.Series(dtype=float, name="feasible_weight"),
+            "cost_ledger": pd.DataFrame(),
+        }
+
+    constraints = ["directional_limit_checks", "suspended_orders_blocked"]
+    missing: list[str] = []
+    if "amount" in panel.columns:
+        amount = pd.to_numeric(panel["amount"], errors="coerce")
+        adv = _shifted_adv(amount)
+        constraints.extend(["amount_positive", "shifted_adv_capacity", "max_participation_rate", "partial_fills", "impact_cost"])
+    else:
+        amount = pd.Series(np.nan, index=panel.index)
+        adv = pd.Series(np.nan, index=panel.index, name="adv")
+        missing.append("amount")
+
+    records: list[dict[str, Any]] = []
+    gross_returns: dict[pd.Timestamp, float] = {}
+    feasible_weight_rows: list[pd.Series] = []
+    previous = pd.Series(dtype=float)
+    dates = pd.Index(target_weights.index.get_level_values("date").unique()).sort_values()
+    dates = dates[dates > train_end]
+    return_dates = returns.index.get_level_values("date")
+
+    for date in dates:
+        target = target_weights.xs(date, level="date")
+        universe = previous.index.union(target.index)
+        submitted = target.reindex(universe, fill_value=0.0).sub(previous.reindex(universe, fill_value=0.0))
+        multi_index = pd.MultiIndex.from_product([[date], universe], names=["date", "code"])
+        suspended = _bool_column(panel, "is_suspended", multi_index).droplevel("date")
+        limit_up = _bool_column(panel, "limit_up", multi_index).droplevel("date")
+        limit_down = _bool_column(panel, "limit_down", multi_index).droplevel("date")
+        today_amount = amount.reindex(multi_index).droplevel("date")
+        today_adv = adv.reindex(multi_index).droplevel("date")
+        capacity_base = pd.concat([today_amount.rename("amount"), today_adv.rename("adv")], axis=1).min(axis=1)
+
+        buy = submitted > 0
+        sell = submitted < 0
+        direction_blocked = suspended | (buy & limit_up) | (sell & limit_down)
+        after_direction = submitted.where(~direction_blocked, 0.0)
+        has_liquidity = (today_amount > 0) & (today_adv >= MIN_ADV_NOTIONAL) & (capacity_base > 0)
+        if "amount" not in panel.columns:
+            has_liquidity = pd.Series(True, index=universe)
+            cap_weight = pd.Series(np.inf, index=universe)
+        else:
+            cap_weight = (capacity_base * MAX_PARTICIPATION_RATE / PORTFOLIO_VALUE).fillna(0.0)
+        after_liquidity = after_direction.where(has_liquidity, 0.0)
+        executable_abs = pd.concat([after_liquidity.abs().rename("order"), cap_weight.rename("cap")], axis=1).min(axis=1)
+        executed = np.sign(after_liquidity) * executable_abs
+        executed = executed.fillna(0.0)
+        current = previous.reindex(universe, fill_value=0.0).add(executed, fill_value=0.0)
+        current.index = pd.MultiIndex.from_product([[pd.Timestamp(date)], current.index], names=["date", "code"])
+        feasible_weight_rows.append(current.rename("feasible_weight"))
+        current = current.droplevel("date")
+
+        date_returns = returns.loc[return_dates == date].droplevel("date").reindex(universe).fillna(0.0)
+        gross = float(current.mul(date_returns, fill_value=0.0).sum())
+
+        submitted_abs = float(submitted.abs().sum() * PORTFOLIO_VALUE)
+        executed_abs_notional = float(executed.abs().sum() * PORTFOLIO_VALUE)
+        records.append(
+            {
+                "date": pd.Timestamp(date),
+                "submitted_notional": submitted_abs,
+                "executed_notional": executed_abs_notional,
+                "blocked_buy_notional": float(submitted.where(buy & direction_blocked, 0.0).abs().sum() * PORTFOLIO_VALUE),
+                "blocked_sell_notional": float(submitted.where(sell & direction_blocked, 0.0).abs().sum() * PORTFOLIO_VALUE),
+                "liquidity_blocked_notional": float(after_direction.where(~has_liquidity, 0.0).abs().sum() * PORTFOLIO_VALUE),
+                "partial_fill_notional": float(after_liquidity.abs().sub(executed.abs()).clip(lower=0.0).sum() * PORTFOLIO_VALUE),
+                "fill_rate": executed_abs_notional / submitted_abs if submitted_abs > 0 else float("nan"),
+                "execution_turnover": float(executed.abs().sum()),
+            }
+        )
+        gross_returns[pd.Timestamp(date)] = gross
+        previous = current.loc[current.abs() > 1e-12]
+
+    daily = pd.DataFrame(records).set_index("date") if records else pd.DataFrame()
+    oos_daily = daily.loc[daily.index > train_end] if not daily.empty else daily
+    executable_long_short = pd.Series(gross_returns, name="executable_long_short").sort_index()
+    executable_long_short = executable_long_short.loc[executable_long_short.index > train_end]
+    if feasible_weight_rows:
+        feasible_weights = pd.concat(feasible_weight_rows).sort_index()
+    else:
+        empty_index = pd.MultiIndex.from_arrays([[], []], names=["date", "code"])
+        feasible_weights = pd.Series(dtype=float, index=empty_index, name="feasible_weight")
+    daily_amount = amount if "amount" in panel.columns else None
+    executable_net_long_short, cost_ledger = apply_execution_costs(
+        executable_long_short,
+        feasible_weights,
+        model=cost_model,
+        daily_amount=daily_amount,
+    )
+    executable_net_long_short.name = "executable_net_long_short"
+    cost_ledger = cost_ledger.reindex(executable_long_short.index)
+    if not oos_daily.empty and not cost_ledger.empty:
+        oos_daily = oos_daily.join(cost_ledger, how="left")
+        oos_daily["impact_cost"] = oos_daily["market_impact_cost"]
+
+    cost_components = [
+        "commission_cost",
+        "stamp_duty_cost",
+        "slippage_cost",
+        "market_impact_cost",
+        "short_borrow_cost",
+    ]
+    component_means = {
+        column: float(cost_ledger[column].mean())
+        for column in cost_components
+        if column in cost_ledger
+    }
+    component_totals = {
+        column: float(cost_ledger[column].sum())
+        for column in cost_components
+        if column in cost_ledger
+    }
+    return {
+        "order_constraints": constraints,
+        "execution_missing_optional_fields": missing,
+        "portfolio_value": PORTFOLIO_VALUE,
+        "max_participation_rate": MAX_PARTICIPATION_RATE,
+        "adv_window": ADV_WINDOW,
+        "min_adv_notional": MIN_ADV_NOTIONAL,
+        "submitted_notional": float(oos_daily["submitted_notional"].sum()) if not oos_daily.empty else 0.0,
+        "executed_notional": float(oos_daily["executed_notional"].sum()) if not oos_daily.empty else 0.0,
+        "blocked_buy_notional": float(oos_daily["blocked_buy_notional"].sum()) if not oos_daily.empty else 0.0,
+        "blocked_sell_notional": float(oos_daily["blocked_sell_notional"].sum()) if not oos_daily.empty else 0.0,
+        "liquidity_blocked_notional": float(oos_daily["liquidity_blocked_notional"].sum()) if not oos_daily.empty else 0.0,
+        "partial_fill_notional": float(oos_daily["partial_fill_notional"].sum()) if not oos_daily.empty else 0.0,
+        "fill_rate_mean": float(oos_daily["fill_rate"].mean()) if not oos_daily.empty else float("nan"),
+        "impact_cost_mean": float(cost_ledger["market_impact_cost"].mean()) if not cost_ledger.empty else float("nan"),
+        "impact_coverage_mean": float(cost_ledger["impact_coverage"].mean()) if not cost_ledger.empty else float("nan"),
+        "cost_total_mean": float(cost_ledger["total_cost"].mean()) if not cost_ledger.empty else float("nan"),
+        "cost_component_means": component_means,
+        "cost_component_totals": component_totals,
+        "cost_model_assumptions": cost_model.to_dict(),
+        "execution_turnover_mean": float(oos_daily["execution_turnover"].mean()) if not oos_daily.empty else float("nan"),
+        "executable_long_short_mean": float(executable_long_short.mean()) if not executable_long_short.empty else float("nan"),
+        "executable_net_long_short_mean": float(executable_net_long_short.mean()) if not executable_net_long_short.empty else float("nan"),
+        "daily_execution": oos_daily.reset_index().to_dict(orient="records") if not oos_daily.empty else [],
+        "executable_long_short": executable_long_short,
+        "executable_net_long_short": executable_net_long_short,
+        "feasible_weights": feasible_weights,
+        "cost_ledger": cost_ledger,
+    }
 
 
 def _tradability_review(
@@ -261,13 +697,14 @@ def _tradability_review(
     mask, constraints, missing = _tradability_mask(panel)
     tradable_factor = factor.where(mask.reindex(factor.index).fillna(False))
     tradable = _segment_metrics(name, tradable_factor, returns, cfg, n_quantiles, train_end, "oos_tradable")
+    execution = _execution_review(factor, returns, panel, cfg, n_quantiles, train_end)
     oos_dates = factor.index.get_level_values("date") > train_end
     aligned = pd.concat(
         [factor.loc[oos_dates].rename("factor"), returns.loc[returns.index.get_level_values("date") > train_end].rename("fwd_ret")],
         axis=1,
     ).dropna()
     eligible = aligned.index[mask.reindex(aligned.index).fillna(False)]
-    return {
+    review = {
         "enabled": bool(constraints),
         "constraints": constraints,
         "missing_optional_fields": missing,
@@ -277,6 +714,10 @@ def _tradability_review(
         "tradable_net_long_short_mean": tradable["summary"].get("net_long_short_mean"),
         "tradable_summary": tradable["summary"],
     }
+    review.update(execution)
+    if execution.get("execution_missing_optional_fields"):
+        review["missing_optional_fields"] = sorted(set(missing) | set(execution["execution_missing_optional_fields"]))
+    return review
 
 
 def backtest(
@@ -302,6 +743,7 @@ def backtest(
     oos = _segment_metrics(expr.name, factor, returns, cfg, n_quantiles, train_end, "oos")
     walk_forward = _walk_forward_metrics(expr.name, factor, returns, cfg, n_quantiles, train_end)
     tradability = _tradability_review(expr.name, factor, returns, panel, cfg, n_quantiles, train_end, oos["summary"])
+    robustness_layers = _robustness_layers(expr.name, factor, returns, panel, cfg, n_quantiles, train_end)
     horizon_sensitivity = _horizon_sensitivity_metrics(
         expr.name,
         factor,
@@ -320,6 +762,7 @@ def backtest(
         rank_ic_series=oos["rank_ic"],
         novelty=novelty,
         horizon_sensitivity=horizon_sensitivity,
+        robustness_layers=robustness_layers,
     )
 
     return {
@@ -329,6 +772,7 @@ def backtest(
         "data": _data_metadata(panel, cfg, forward_column, n_quantiles),
         "walk_forward": walk_forward,
         "tradability": tradability,
+        "robustness_layers": robustness_layers,
         "robustness": robustness,
         "factor": factor,
         "rank_ic": oos["rank_ic"],
