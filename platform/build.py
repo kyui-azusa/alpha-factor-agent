@@ -23,6 +23,7 @@ import graph as graph_mod
 ROOT = Path(__file__).resolve().parent
 PACKETS_DIR = ROOT / "content" / "packets"
 SHOWCASE_DIR = ROOT / "content" / "showcase"
+HERO_FILE = ROOT / "content" / "hero.md"
 CSS_FILE = ROOT / "static" / "style.css"
 DIST = ROOT / "dist"
 
@@ -78,6 +79,35 @@ def load_showcase() -> list[dict]:
     items = [m for m in items if m.get("public") is True]
     items.sort(key=lambda m: (int(m.get("order", 999)), str(m.get("id", ""))))
     return items
+
+
+def load_hero_film() -> dict:
+    """首屏视频。同样 fail-closed:没有 hero.md 或没写 public: true 就整块不渲染(ADR-0020)。"""
+    if not HERO_FILE.exists():
+        return {}
+    meta = parse_packet(HERO_FILE)
+    if meta.get("public") is not True:
+        return {}
+    for key in ("poster", "teaser", "video"):
+        if not (ROOT / str(meta.get(key, ""))).exists():
+            raise FileNotFoundError(
+                f"hero.md 的 {key} 指向 {meta.get(key)},文件不存在 —— 先跑 scripts/make_hero_media.py"
+            )
+    return meta
+
+
+def copy_media(film: dict) -> list[str]:
+    """视频不能内联进单文件 HTML(6MB base64 会涨到 8MB+),按 paper.pdf 的老规矩单独拷。"""
+    if not film:
+        return []
+    names = []
+    for key in ("poster", "teaser", "video"):
+        rel = str(film[key])
+        dest = DIST / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / rel, dest)
+        names.append(rel)
+    return names
 
 
 def copy_snapshots(items: list[dict]) -> list[tuple[str, str]]:
@@ -174,7 +204,8 @@ def render_showcase_card(item: dict) -> str:
         parts = []
         for link in links:
             label = _esc(link.get("label", "打开"))
-            href = _esc(link.get("href", "#"))
+            raw_href = str(link.get("href", "#"))
+            href = _esc(raw_href)
             cls = "go primary" if link.get("primary") else "go"
             # stamp: snapshot → 标签后附快照日期,让访客知道站内读的是哪一版
             if link.get("stamp") == "snapshot" and item.get("snapshot_date"):
@@ -190,9 +221,13 @@ def render_showcase_card(item: dict) -> str:
     <p class="embed-fallback">看不到内容?<a href="{href}" target="_blank" rel="noopener">在新标签打开</a>(部分手机浏览器不支持内嵌 PDF)。</p>
   </div>"""
             else:
-                parts.append(
-                    f'<a class="{cls}" href="{href}" target="_blank" rel="noopener">{label}</a>'
+                external_attrs = (
+                    ' target="_blank" rel="noopener"'
+                    if urllib.parse.urlsplit(raw_href).scheme in {"http", "https"}
+                    or raw_href.startswith("//")
+                    else ""
                 )
+                parts.append(f'<a class="{cls}" href="{href}"{external_attrs}>{label}</a>')
         links_block = f'<div class="go-row">{"".join(parts)}</div>{embed_block}'
 
     body = item.get("body", "")
@@ -245,6 +280,41 @@ def render_metric_card(g: "graph_mod.Graph") -> str:
             <span class="m-head">{_esc(layer["label"])}<em>{_esc(layer.get("note", ""))}</em></span>
             <div class="m-chips">{chips}</div>
           </aside>"""
+
+
+def render_film(film: dict) -> str:
+    """首屏视频卡。
+
+    三层:海报(秒出,占位)→ 静音循环预告(氛围)→ 点开才加载的全片(放进灯箱看)。
+    预告不带声音也不带信息负担,真要看的人点一下才付 6MB 的流量。
+    """
+    if not film:
+        return ""
+    status = film.get("status", "")
+    return f"""  <figure class="film r-5">
+    <button type="button" class="film-stage" data-film-open
+            aria-label="播放{_esc(film.get('title', '演示视频'))}">
+      <img class="film-poster" src="{_esc(film['poster'])}" alt="" width="960" height="540" decoding="async">
+      <video class="film-loop" data-film-loop src="{_esc(film['teaser'])}"
+             muted loop playsinline preload="none" aria-hidden="true" tabindex="-1"></video>
+      <span class="film-scrim" aria-hidden="true"></span>
+      <span class="film-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+      <span class="film-meta">
+        <em>{_esc(film.get('label', '演示'))}{f' · {_esc(status)}' if status else ''}</em>
+        <strong>{_esc(film.get('title', ''))}</strong>
+        <span class="film-dur">{_esc(film.get('duration', ''))}</span>
+      </span>
+    </button>
+    <figcaption>{_esc(film.get('summary', ''))}{f'<span class="film-note">{_esc(film["note"])}</span>' if film.get("note") else ''}</figcaption>
+  </figure>
+  <div class="film-box" data-film-box hidden>
+    <div class="film-box-scrim" data-film-close></div>
+    <div class="film-box-inner" role="dialog" aria-modal="true" aria-label="{_esc(film.get('title', '演示视频'))}">
+      <button type="button" class="film-box-close" data-film-close aria-label="关闭">×</button>
+      <video class="film-full" data-film-full src="{_esc(film['video'])}"
+             poster="{_esc(film['poster'])}" controls playsinline preload="none"></video>
+    </div>
+  </div>"""
 
 
 def render_graph_section() -> tuple[str, str]:
@@ -425,21 +495,25 @@ THEME_TOGGLE = (
 )
 
 
-def render_page(packets: list[dict], showcase: list[dict], css: str) -> str:
+def render_page(packets: list[dict], showcase: list[dict], css: str, film: dict | None = None) -> str:
+    film = film or {}
     graph_html, graph_data = render_graph_section()
     cards = "\n".join(render_packet_card(p) for p in packets) or "<p>还没有想法卡片。</p>"
-    hero = """<section class="hero">
-  <span class="eyebrow"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
-  <h1>结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
-  <p class="lede">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
-  以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
-  <div class="chips">
-    <span class="chip">防 look-ahead</span>
-    <span class="chip">样本外滚动</span>
-    <span class="chip">纯代码回测</span>
-    <span class="chip">有对照组</span>
-    <span class="chip">阴性结果也是结论</span>
+    hero = f"""<section class="hero{' has-film' if film else ''}">
+  <div class="hero-copy">
+    <span class="eyebrow r-1"><span class="pulse"></span>AI · 可解释 Alpha 因子</span>
+    <h1 class="r-2">结构化字段之外,<br><em>文本</em>还剩多少 <em>alpha</em>?</h1>
+    <p class="lede r-3">当数据库已经公开了同一事件的关键数字,LLM 读公告正文还能多告诉我们什么?
+    以 A 股业绩预告为检验场 —— 增量存在与否,两个方向都是结论。</p>
+    <div class="chips r-4">
+      <span class="chip">防 look-ahead</span>
+      <span class="chip">样本外滚动</span>
+      <span class="chip">纯代码回测</span>
+      <span class="chip">有对照组</span>
+      <span class="chip">阴性结果也是结论</span>
+    </div>
   </div>
+{render_film(film)}
 </section>"""
     return f"""<!doctype html>
 <html lang="zh-CN" data-theme="dark">
@@ -697,6 +771,79 @@ GRAPH_JS = """
 """
 
 JS = """
+// 首屏视频:静音循环预告 + 点开进灯箱看全片
+(function () {
+  var stage = document.querySelector('[data-film-open]');
+  var loop = document.querySelector('[data-film-loop]');
+  var box = document.querySelector('[data-film-box]');
+  var full = document.querySelector('[data-film-full]');
+  if (!stage || !box || !full) return;
+
+  var calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  // 预告只在能看见、且页面在前台时才播 —— 滚走了还在解码是白烧电池
+  if (loop && !calm.matches) {
+    loop.preload = 'auto';
+    var wanted = false;
+    var play = function () {
+      if (!wanted || document.hidden || !box.hidden) return;
+      var p = loop.play();
+      if (p && p.catch) p.catch(function () {});   // 省电模式会拒绝自动播放,保持海报即可
+    };
+    loop.addEventListener('playing', function () { loop.classList.add('is-on'); });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (es) {
+        wanted = es[0].isIntersecting;
+        if (wanted) play(); else loop.pause();
+      }, { threshold: 0.15 }).observe(stage);
+    } else {
+      wanted = true; play();
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) loop.pause(); else play();
+    });
+  }
+
+  var lastFocus = null;
+  function open() {
+    lastFocus = document.activeElement;
+    if (loop) loop.pause();
+    box.hidden = false;   // src 已在 HTML 里,但 preload=none,到这一刻才真去下 6MB
+    // 上屏与加类必须分成两次样式计算,否则过渡不跑。这里用强制回流而不是 rAF ——
+    // 后台/被节流的文档里 rAF 可能一直不触发,灯箱就会开着却是透明的。
+    void box.offsetWidth;
+    box.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    var p = full.play();
+    if (p && p.catch) p.catch(function () {});
+    full.focus({ preventScroll: true });
+  }
+
+  function close() {
+    full.pause();
+    box.classList.remove('is-open');
+    document.body.style.overflow = '';
+    var done = function () {
+      box.hidden = true;
+      if (loop && !calm.matches) {
+        var p = loop.play();
+        if (p && p.catch) p.catch(function () {});
+      }
+      if (lastFocus) lastFocus.focus({ preventScroll: true });
+    };
+    if (calm.matches) done();
+    else setTimeout(done, 300);
+  }
+
+  stage.addEventListener('click', open);
+  box.querySelectorAll('[data-film-close]').forEach(function (el) {
+    el.addEventListener('click', close);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !box.hidden) close();
+  });
+})();
+
 // 配色切换:选择记在 localStorage;没选过就跟随系统(含系统白天/夜间的实时切换)
 (function () {
   var root = document.documentElement;
@@ -1193,17 +1340,21 @@ if (form) {
 def main() -> None:
     packets = load_packets()
     showcase = load_showcase()
+    film = load_hero_film()
     css = CSS_FILE.read_text(encoding="utf-8") if CSS_FILE.exists() else ""
     DIST.mkdir(parents=True, exist_ok=True)
     snapshots = copy_snapshots(showcase)
-    (DIST / "index.html").write_text(render_page(packets, showcase, css), encoding="utf-8")
+    media = copy_media(film)
+    (DIST / "index.html").write_text(render_page(packets, showcase, css, film), encoding="utf-8")
     print(f"✔ 单文件生成 {len(packets)} 张卡片 / {len(showcase)} 项成果 → {(DIST / 'index.html').relative_to(ROOT.parent)}")
     for name, snap_date in snapshots:
         print(f"  快照 {name}(源修改于 {snap_date})")
+    for name in media:
+        print(f"  首屏视频 {name}({(DIST / name).stat().st_size / 1024:.0f} KB)")
     print(f"  生成日期 {date.today()};工单 → 同源 /api/intake")
-    if snapshots:
-        names = " ".join(n for n, _ in snapshots)
-        print(f"  部署需上传:index.html {names}")
+    extras = [n for n, _ in snapshots] + media
+    if extras:
+        print(f"  部署需上传:index.html {' '.join(extras)}")
 
 
 if __name__ == "__main__":

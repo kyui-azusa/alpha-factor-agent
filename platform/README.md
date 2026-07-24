@@ -28,6 +28,24 @@ platform/
 python platform/build.py        # → platform/dist/index.html(单文件)
 ```
 
+## 首屏视频
+
+`content/hero.md`(fail-closed:没有 `public: true` 就整块不渲染)。三层递进:
+
+| 层 | 文件 | 何时加载 | 作用 |
+|---|---|---|---|
+| 海报 | `media/poster.jpg` ~20KB | 立即 | 占位,不留白洞 |
+| 环境预告 | `media/teaser.mp4` ~230KB | 立即,静音循环 | 只做氛围;进视口才播,切后台就停 |
+| 全片 | `media/demo.mp4` ~6.5MB | **点了才下** | 灯箱里带声音看 |
+
+素材由 `python scripts/make_hero_media.py` 从 Manim 全片切出(挑三个有动作的节拍接成无缝循环),
+**重渲染视频后要重跑它再 `build.py`**。视频没法内联进单文件 HTML,按 `paper.pdf` 的老规矩单独上传,
+`build.py` 结尾会打印完整的上传清单。
+
+入场是逐级揭幕(眉标→标题→导语→标签→影片,差 70ms),影片那级是"显影"(模糊+缩放一起收)而非淡入。
+起始状态写在 `@keyframes` 的 `from` 里配 `fill-mode: backwards`,**不写在元素上** ——
+差别在失败方向:写元素上时动画一旦没跑,首屏就永远空白。
+
 ## 配色(深 / 浅)
 
 顶栏右上角一枚按钮切换,选择存 `localStorage['alpha-theme']`;**没选过就跟随系统**,白天自动是浅色。
