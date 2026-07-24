@@ -84,6 +84,45 @@ def deterministic_fingerprint(expr: FactorExpr) -> str:
     return render(tree)
 
 
+def _factor_fields(expr: FactorExpr) -> set[str]:
+    try:
+        parsed_fields = expression_names(expr.expression)
+    except Exception:
+        parsed_fields = set()
+    return parsed_fields | set(expr.fields_used)
+
+
+def _novelty_evidence(
+    *,
+    candidate: FactorExpr,
+    existing: FactorExpr,
+    similarity_type: str,
+    candidate_fingerprint: str,
+    existing_fingerprint: str,
+    abs_corr: float | None,
+    threshold: float | None,
+    corr_warn: float,
+    corr_reject: float,
+    status: str,
+    reason: str,
+) -> dict:
+    return {
+        "candidate_name": candidate.name,
+        "nearest_factor": existing.name,
+        "similarity_type": similarity_type,
+        "shared_fields": sorted(_factor_fields(candidate) & _factor_fields(existing)),
+        "candidate_fingerprint": candidate_fingerprint,
+        "nearest_fingerprint": existing_fingerprint,
+        "abs_corr": abs_corr,
+        "threshold": threshold,
+        "corr_warn_threshold": corr_warn,
+        "corr_reject_threshold": corr_reject,
+        "decision": status,
+        "status": status,
+        "reason": reason,
+    }
+
+
 def novelty_review(
     expr: FactorExpr,
     evaluated: pd.Series,
@@ -96,12 +135,33 @@ def novelty_review(
     expr_fp = deterministic_fingerprint(expr)
     max_corr = 0.0
     max_name: str | None = None
+    max_factor: FactorExpr | None = None
+    max_fp: str | None = None
     for existing in existing_factors:
-        if deterministic_fingerprint(existing) == expr_fp:
-            return False, f"deterministic duplicate expression: {existing.name}", {
+        existing_fp = deterministic_fingerprint(existing)
+        if existing_fp == expr_fp:
+            reason = f"deterministic duplicate expression: {existing.name}"
+            evidence = _novelty_evidence(
+                candidate=expr,
+                existing=existing,
+                similarity_type="deterministic_duplicate",
+                candidate_fingerprint=expr_fp,
+                existing_fingerprint=existing_fp,
+                abs_corr=1.0,
+                threshold=1.0,
+                corr_warn=corr_warn,
+                corr_reject=corr_reject,
+                status="reject",
+                reason=reason,
+            )
+            return False, reason, {
                 "max_abs_existing_corr": 1.0,
                 "nearest_factor": existing.name,
+                "corr_warn_threshold": corr_warn,
+                "corr_reject_threshold": corr_reject,
                 "status": "reject",
+                "evidence": [evidence],
+                "reason": reason,
             }
         try:
             base = evaluate(existing, panel)
@@ -114,19 +174,58 @@ def novelty_review(
         if corr > max_corr:
             max_corr = corr
             max_name = existing.name
+            max_factor = existing
+            max_fp = existing_fp
     review = {
         "max_abs_existing_corr": max_corr,
         "nearest_factor": max_name,
         "corr_warn_threshold": corr_warn,
         "corr_reject_threshold": corr_reject,
         "status": "pass",
+        "evidence": [],
     }
     if max_corr >= corr_reject:
+        reason = f"factor is too correlated with existing factor {max_name}: {max_corr:.3f}"
         review["status"] = "reject"
-        return False, f"factor is too correlated with existing factor {max_name}: {max_corr:.3f}", review
+        review["reason"] = reason
+        if max_factor is not None and max_fp is not None:
+            review["evidence"] = [
+                _novelty_evidence(
+                    candidate=expr,
+                    existing=max_factor,
+                    similarity_type="high_correlation_reject",
+                    candidate_fingerprint=expr_fp,
+                    existing_fingerprint=max_fp,
+                    abs_corr=max_corr,
+                    threshold=corr_reject,
+                    corr_warn=corr_warn,
+                    corr_reject=corr_reject,
+                    status="reject",
+                    reason=reason,
+                )
+            ]
+        return False, reason, review
     if max_corr >= corr_warn:
+        reason = f"ok; novelty warning versus {max_name}: abs_corr={max_corr:.3f}"
         review["status"] = "warn"
-        return True, f"ok; novelty warning versus {max_name}: abs_corr={max_corr:.3f}", review
+        review["reason"] = reason
+        if max_factor is not None and max_fp is not None:
+            review["evidence"] = [
+                _novelty_evidence(
+                    candidate=expr,
+                    existing=max_factor,
+                    similarity_type="high_correlation_warn",
+                    candidate_fingerprint=expr_fp,
+                    existing_fingerprint=max_fp,
+                    abs_corr=max_corr,
+                    threshold=corr_warn,
+                    corr_warn=corr_warn,
+                    corr_reject=corr_reject,
+                    status="warn",
+                    reason=reason,
+                )
+            ]
+        return True, reason, review
     return True, "ok", review
 
 

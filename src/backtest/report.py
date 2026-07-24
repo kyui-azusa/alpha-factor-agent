@@ -193,6 +193,9 @@ def to_report(result: dict, path: str | Path | None = None) -> Path:
         "summary": result["summary"],
         "train_summary": result.get("train_summary", {}),
         "data": result.get("data", {}),
+        "experiment_lock": result.get("experiment_lock", {}),
+        "field_lineage": result.get("field_lineage", {}),
+        "audit": result.get("audit", {}),
         "walk_forward": result.get("walk_forward", {}),
         "tradability": result.get("tradability", {}),
         "robustness": result.get("robustness", {}),
@@ -228,15 +231,29 @@ def _metadata_value(metadata: dict[str, Any], key: str) -> str:
     return "n/a" if value in (None, "") else str(value)
 
 
+def _format_list(values: Any) -> str:
+    if not values:
+        return "n/a"
+    if isinstance(values, list):
+        return ", ".join(str(value) for value in values)
+    return str(values)
+
+
 def _write_factor_card(result: dict, report_dir: Path) -> None:
     expr = result["expr"]
     metadata = expr.get("metadata", {}) or {}
     summary = result.get("summary", {})
     train = result.get("train_summary", {})
     data = result.get("data", {})
+    experiment_lock = result.get("experiment_lock", {})
+    field_lineage = result.get("field_lineage", {})
+    audit = result.get("audit", {})
     walk_forward = result.get("walk_forward", {})
     tradability = result.get("tradability", {})
     robustness = result.get("robustness", {})
+    wf_health = walk_forward.get("health_summary", {}) if isinstance(walk_forward, dict) else {}
+    wf_pass_rate = walk_forward.get("pass_rate", wf_health.get("pass_rate")) if isinstance(walk_forward, dict) else None
+    wf_risk_flags = walk_forward.get("risk_flags", wf_health.get("risk_flags")) if isinstance(walk_forward, dict) else None
     tradable_summary = tradability.get("tradable_summary", {}) if isinstance(tradability, dict) else {}
     layers = _evaluation_layers(result)
     factor_validity = layers["factor_validity"]
@@ -265,6 +282,32 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
         f"- Universe: `{data.get('universe', 'n/a')}`",
         f"- Forward return: `{data.get('forward_column', 'n/a')}`",
         f"- Cost bps: `{data.get('cost_bps', summary.get('cost_bps', 'n/a'))}`",
+        "",
+        "## Experiment Lock",
+        "",
+        f"- Lock hash: `{experiment_lock.get('lock_hash', 'n/a')}`",
+        f"- Code commit: `{experiment_lock.get('code', {}).get('commit', 'n/a') if isinstance(experiment_lock, dict) else 'n/a'}`",
+        f"- Worktree dirty: `{experiment_lock.get('code', {}).get('worktree_dirty', 'n/a') if isinstance(experiment_lock, dict) else 'n/a'}`",
+        f"- Field catalog hash: `{experiment_lock.get('data', {}).get('field_catalog_hash', 'n/a') if isinstance(experiment_lock, dict) else 'n/a'}`",
+        f"- LLM backend/model: `{experiment_lock.get('llm', {}).get('backend', 'n/a') if isinstance(experiment_lock, dict) else 'n/a'}` / `{experiment_lock.get('llm', {}).get('model', 'n/a') if isinstance(experiment_lock, dict) else 'n/a'}`",
+        f"- Backtest calls LLM: `{experiment_lock.get('llm', {}).get('backtest_calls_llm', 'n/a') if isinstance(experiment_lock, dict) else 'n/a'}`",
+        f"- Lock warnings: `{_format_list(experiment_lock.get('warnings') if isinstance(experiment_lock, dict) else None)}`",
+        "",
+        "## Evidence States",
+        "",
+        *[
+            f"- {name}: `{state.get('status', 'n/a')}` passed=`{state.get('is_passed', 'n/a')}` reason=`{state.get('reason_code', 'n/a')}`"
+            for name, state in (audit.get("evidence_states", {}) if isinstance(audit, dict) else {}).items()
+        ],
+        "",
+        "## Field Lineage",
+        "",
+        f"- Lineage status: `{field_lineage.get('status', {}).get('status', 'n/a') if isinstance(field_lineage, dict) else 'n/a'}`",
+        f"- Missing fields: `{_format_list(field_lineage.get('missing_fields') if isinstance(field_lineage, dict) else None)}`",
+        *[
+            f"- `{row.get('field', 'n/a')}` source=`{row.get('source', 'n/a')}` available=`{row.get('available_date', 'n/a')}` rule=`{row.get('rule', row.get('reason_code', 'n/a'))}`"
+            for row in (field_lineage.get("fields", []) if isinstance(field_lineage, dict) else [])
+        ],
         "",
         "## Factor Validity",
         "",
@@ -319,6 +362,18 @@ def _write_factor_card(result: dict, report_dir: Path) -> None:
         f"- Usable windows: `{walk_forward.get('usable_windows', 'n/a')}`",
         f"- Positive IC windows: `{walk_forward.get('positive_ic_windows', 'n/a')}`",
         f"- Negative IC windows: `{walk_forward.get('negative_ic_windows', 'n/a')}`",
+        "",
+        "## Walk Forward Health",
+        "",
+        f"- Health status: `{walk_forward.get('health_status', wf_health.get('health_status', 'n/a'))}`",
+        f"- Window pass rate: `{_format_metric(wf_pass_rate)}`",
+        f"- Total windows: `{wf_health.get('total_windows', 'n/a')}`",
+        f"- Evaluated windows: `{wf_health.get('evaluated_windows', 'n/a')}`",
+        f"- Passing windows: `{wf_health.get('passing_windows', 'n/a')}`",
+        f"- Weak windows: `{wf_health.get('weak_windows', 'n/a')}`",
+        f"- Anomalous windows: `{wf_health.get('anomalous_windows', 'n/a')}`",
+        f"- Sample insufficient windows: `{wf_health.get('sample_insufficient_windows', 'n/a')}`",
+        f"- Risk flags: `{_format_list(wf_risk_flags)}`",
         "",
         "## Robustness",
         "",

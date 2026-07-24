@@ -70,6 +70,7 @@ These protect the main claim that the system is deterministic, point-in-time, an
 
 | Issues | Workstream | Why it matters | Suggested first step |
 |---|---|---|---|
+| #59, #60, #61, #65 | Evidence state, lineage, exclusion audit, and selection-bias ledger | Missing evidence must fail closed; otherwise members can mistake incomplete provenance, sample exclusions, or cherry-picked winners for verified alpha evidence. | Add a small deterministic evidence/audit protocol used by report JSON and factor cards; keep OOS metrics out of feedback inputs. |
 | #7, #15 | PIT field availability and look-ahead proof | The most important correctness boundary in the project. #15 also challenges the paper's current proof strength. | Audit `pit_merge`, factor evaluation paths, and report/paper wording; add tests for bypass and metadata coverage where feasible. |
 | #10 | Expression engine whitelist and complexity limits | Prevents LLM output from becoming arbitrary code or unstable formulas. | Inspect `src/factors/engine.py`; add structured validation errors and tests for unknown fields/operators/window/depth. |
 | #8 | Synthetic-vs-real report labeling | Prevents engineering validation from being mistaken for market evidence. | Add `data_mode` and source metadata to manifest/report outputs and tests. |
@@ -80,6 +81,9 @@ These make the numerical results more defensible once correctness is intact.
 
 | Issues | Workstream | Why it matters | Suggested first step |
 |---|---|---|---|
+| #56, #93, #95; #94 review-only | Walk-forward window health summary | Duplicated intake asks for window-level OOS health, so weak/abnormal windows are not hidden by aggregate IC. #94 appears to be mojibake for the same request and should be checked before closing. | Extend walk-forward output with per-window status, pass rate, risk summary, and factor-card rendering. |
+| #57 | Re-skin evidence explanation layer | Duplicate-factor rejection should explain the nearest factor, shared fields, expression similarity, and promotion/rejection reason without leaking OOS feedback into generation. | Enrich novelty review metadata and report rendering for deterministic duplicate/correlation evidence. |
+| #58 | Reproducible experiment lock metadata | Reports should pin code/config/data/LLM settings well enough to rerun the same experiment and warn when required lock fields are missing. | Add a deterministic experiment lock block to `backtest`/`report` outputs and factor cards. |
 | #11 | Walk-forward OOS evaluation | Reduces dependence on one train/test split and supports robustness discussion. | Extend backtest runner/report with rolling or expanding windows, then summarize pass rate and worst window. |
 | #12 | Trading feasibility constraints | A-share stop/limit/liquidity constraints can make paper returns unrealizable. | Add optional constraints to portfolio construction/reporting; keep ideal and feasible results side by side. |
 | #20 | Re-skin factor detection and promotion policy | Avoids promoting near-duplicate factors that pass IC by minor variation. | Extend novelty checks beyond strict correlation and document promotion rules. |
@@ -127,6 +131,9 @@ Keep this table short and current. One row can cover a grouped workstream when t
 | #9 | Standard factor explanation cards | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Added factor card output in backtest reports. Closed upstream with completion note on 2026-07-22. |
 | #13, #17 | Candidate factor ideas | P2 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | Registered cash-flow yield and delevered ROE as explainable seed/candidate factors. Closed upstream with completion note on 2026-07-22. |
 | #5 | Intake validation tickets | P3 | done | Codex current task | 2026-07-22 12:10 +0800 | 2026-07-22 13:10 +0800 | #2 and #5 closed as validation-only on 2026-07-22; no product code change required. |
+| #59, #60, #61, #65 | Evidence state, lineage, exclusion audit, and selection-bias ledger | P0 | done | Codex orchestrator / subagent-evidence | 2026-07-24 00:52 +0800 | 2026-07-24 01:52 +0800 | Added deterministic audit primitives, report JSON/factor-card evidence states, field lineage, exclusion audit, and candidate funnel disclosure. Verified: `pytest tests/test_audit.py tests/test_backtest.py tests/test_agents.py -q`; `pytest -q`. |
+| #56, #93, #95, #94 | Walk-forward window health summary | P1 | done | Codex orchestrator / subagent-walk-forward | 2026-07-24 00:52 +0800 | 2026-07-24 01:52 +0800 | Added per-window health status/flags, aggregate pass rate/risk flags, and factor-card rendering. #93/#95 duplicate #56; #94 appears mojibake and still needs upstream duplicate/validation-only closeout note. Verified: `pytest tests/test_backtest.py -q`; `pytest -q`. |
+| #57, #58 | Re-skin evidence explanation and experiment lock metadata | P1 | done | Codex orchestrator / subagent-novelty-lock | 2026-07-24 00:52 +0800 | 2026-07-24 01:52 +0800 | Added novelty evidence metadata for duplicate/correlation decisions plus reproducible experiment lock fields and warnings in reports. Verified: `pytest tests/test_agents.py tests/test_backtest.py -q`; `pytest -q`. |
 
 ## Claim Examples
 

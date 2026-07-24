@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from src.audit import candidate_funnel_summary
 from src.agents.feedback import refine
 from src.agents.generate import propose_factors
 from src.agents.knowledge import generation_context
@@ -45,6 +46,7 @@ def run_loop(
     gen_context = generation_context(panel)
     accepted: list[FactorExpr] = list(BASELINE_FACTORS)
     results: list[dict] = []
+    candidate_audit: list[dict] = []
 
     for round_id in range(1, rounds + 1):
         candidates = propose_factors([factor.to_dict() for factor in accepted], gen_context, n=per_round, client=client)
@@ -54,14 +56,39 @@ def run_loop(
             for attempt in range(refine_rounds + 1):
                 ok, reason = validate(current, field_dict, panel=panel, existing_factors=accepted, client=client)
                 if not ok:
+                    audit_row = {
+                        "generated": True,
+                        "validated": False,
+                        "backtested": False,
+                        "promoted": False,
+                        "rejected": True,
+                        "reason_code": reason.split(":", 1)[0].replace(" ", "_").lower(),
+                    }
+                    candidate_audit.append(audit_row)
                     results.append(
-                        {"round": round_id, "attempt": attempt, "expr": current.to_dict(), "parent": parent, "rejected": reason}
+                        {
+                            "round": round_id,
+                            "attempt": attempt,
+                            "expr": current.to_dict(),
+                            "parent": parent,
+                            "rejected": reason,
+                            "candidate_audit": audit_row,
+                        }
                     )
                     break
                 result = backtest(current, panel, fwd_ret, cfg=cfg)
                 to_report(result, cfg.report_dir / current.name)
                 _save_factor(current, result, cfg.factor_dir / f"{current.name}.json", parent=parent)
                 accepted.append(current)
+                audit_row = {
+                    "generated": True,
+                    "validated": True,
+                    "backtested": True,
+                    "promoted": True,
+                    "rejected": False,
+                    "reason_code": "promoted",
+                }
+                candidate_audit.append(audit_row)
                 results.append(
                     {
                         "round": round_id,
@@ -71,6 +98,7 @@ def run_loop(
                         "train_summary": result["train_summary"],
                         "summary": result["summary"],
                         "validation": reason,
+                        "candidate_audit": audit_row,
                     }
                 )
                 if attempt >= refine_rounds:
@@ -81,6 +109,9 @@ def run_loop(
                     break
                 parent = current.name
                 current = refined
+    funnel = candidate_funnel_summary(candidate_audit).to_dict()
+    for item in results:
+        item["candidate_funnel"] = funnel
     return results
 
 

@@ -10,6 +10,7 @@ from src.backtest.runner import backtest
 from src.config import Config
 from src.factors.baseline import BASELINE_FACTORS
 from src.factors.engine import FactorExpr
+from src.utils.field_availability import attach_field_availability, price_field_metadata
 from src.utils.data_loader import build_panel, get_forward_returns, load_prices
 
 
@@ -51,7 +52,17 @@ def test_backtest_baseline_writes_report(tmp_path):
     assert (report_dir / "summary.png").exists()
     payload = json.loads((report_dir / "report.json").read_text(encoding="utf-8"))
     assert payload["data"]["data_mode"] in {"synthetic", "mixed", "real"}
+    assert payload["experiment_lock"]["llm"]["backtest_calls_llm"] is False
+    assert payload["experiment_lock"]["llm"]["cache_key"] == "not_applicable_backtest_does_not_call_llm"
+    assert payload["experiment_lock"]["lock_hash"]
+    assert payload["field_lineage"]["status"]["is_passed"] is True
+    assert {row["field"] for row in payload["field_lineage"]["fields"]} >= set(BASELINE_FACTORS[0].fields_used)
+    assert payload["audit"]["evidence_states"]["field_lineage"]["status"] == "verified"
+    assert payload["audit"]["exclusion_audit"]
     assert payload["walk_forward"]["status"]
+    assert "health_summary" in payload["walk_forward"]
+    assert 0.0 <= payload["walk_forward"]["pass_rate"] <= 1.0
+    assert isinstance(payload["walk_forward"]["risk_flags"], list)
     assert "tradability" in payload
     assert "robustness" in payload
     layers = payload["evaluation_layers"]
@@ -59,8 +70,12 @@ def test_backtest_baseline_writes_report(tmp_path):
     assert layers["factor_validity"]["quantile_monotonicity"]
     card = (report_dir / "factor_card.md").read_text(encoding="utf-8")
     assert "## Factor Validity" in card
+    assert "## Experiment Lock" in card
+    assert "## Evidence States" in card
+    assert "## Field Lineage" in card
     assert "## Strategy Performance" in card
     assert "## Risk Exposure And Independence" in card
+    assert "## Walk Forward Health" in card
     assert "## Metrics" not in card
     assert "Robustness" in card
     assert result["summary"]["observations"] > 0
@@ -82,6 +97,9 @@ def test_backtest_includes_inference_walk_forward_and_tradability(tmp_path):
     windows = result["walk_forward"]["windows"]
     assert [window["start_date"] for window in windows] == sorted(window["start_date"] for window in windows)
     assert all(pd.Timestamp(window["start_date"]) > pd.Timestamp(cfg.train_end) for window in windows)
+    assert all("health_status" in window for window in windows)
+    assert result["walk_forward"]["health_summary"]["total_windows"] == len(windows)
+    assert 0.0 <= result["walk_forward"]["health_summary"]["pass_rate"] <= 1.0
     assert "amount_positive" in result["tradability"]["constraints"]
     assert result["robustness"]["similarity_risk"] in {"low", "medium", "high", "unknown"}
     assert result["robustness"]["overfit_risk"] in {"low", "medium", "high", "unknown"}
@@ -104,6 +122,60 @@ def test_backtest_includes_inference_walk_forward_and_tradability(tmp_path):
     assert policy["a_share_reality_checks"]["stamp_duty_sell_side_bps_reference"] == 100.0
     assert {3, 5, 10} <= set(policy["n_quantiles_grid"])
     assert "rank" in policy["allowed_functions"]
+
+
+def test_walk_forward_health_marks_weak_anomalous_and_sample_insufficient(tmp_path):
+    cfg = Config(
+        data_dir=tmp_path / "data",
+        results_dir=tmp_path / "results",
+        start_date="2020-12-01",
+        end_date="2021-07-31",
+        train_end="2020-12-31",
+    )
+    dates = pd.bdate_range("2020-12-01", periods=163)
+    codes = [f"S{i:02d}" for i in range(6)]
+    idx = pd.MultiIndex.from_product([dates, codes], names=["date", "code"])
+    base_rank = np.tile(np.arange(1, len(codes) + 1, dtype=float), len(dates))
+    panel = pd.DataFrame({"close": base_rank, "amount": 1.0}, index=idx)
+    panel = attach_field_availability(
+        panel,
+        {"close": price_field_metadata("close"), "amount": price_field_metadata("amount")},
+    )
+
+    returns = pd.Series(index=idx, dtype=float, name="fwd_ret_5")
+    oos_dates = [date for date in dates if date > pd.Timestamp(cfg.train_end)]
+    weak_patterns = [
+        np.array([0.001, 0.001, 0.002, 0.002, 0.001, 0.001]),
+        np.array([0.002, 0.001, 0.001, 0.002, 0.001, 0.001]),
+        np.array([0.001, 0.002, 0.001, 0.001, 0.002, 0.001]),
+        np.array([0.002, 0.001, 0.002, 0.001, 0.001, 0.001]),
+    ]
+    for date in dates:
+        if date <= pd.Timestamp(cfg.train_end):
+            values = np.linspace(0.001, 0.006, len(codes))
+        else:
+            pos = oos_dates.index(date)
+            if pos < 63:
+                values = np.linspace(0.001, 0.006, len(codes))
+            elif pos < 126:
+                values = weak_patterns[pos % len(weak_patterns)]
+            else:
+                values = np.linspace(0.001, 0.006, len(codes))
+        returns.loc[(date, slice(None))] = values
+    fwd = returns.to_frame()
+
+    result = backtest(FactorExpr("health_probe", "rank(close)", "test", ["close"]), panel, fwd, cfg=cfg, n_quantiles=3)
+
+    statuses = [window["health_status"] for window in result["walk_forward"]["windows"]]
+    assert statuses == ["anomalous", "weak", "sample_insufficient"]
+    summary = result["walk_forward"]["health_summary"]
+    assert summary["anomalous_windows"] == 1
+    assert summary["weak_windows"] == 1
+    assert summary["sample_insufficient_windows"] == 1
+    assert summary["pass_rate"] == 0.0
+    assert {"has_anomalous_windows", "has_weak_windows", "has_sample_insufficient_windows"} <= set(
+        result["walk_forward"]["risk_flags"]
+    )
 
 
 def test_tradability_review_drops_zero_amount_oos_observations(tmp_path):
