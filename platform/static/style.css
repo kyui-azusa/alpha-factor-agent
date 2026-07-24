@@ -217,20 +217,9 @@ header.site nav a:hover { color: var(--ink); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* ---------- 首屏视频 ----------
-   宽屏时首屏排成两栏(文案左 / 影片右),并向右探出版心 ——
-   竖排会把影片推到折线以下,那就不叫"首屏视频"了。 */
-.hero.has-film { padding-bottom: 22px; }
-@media (min-width: 1000px) {
-  .hero.has-film {
-    display: grid; align-items: center; gap: 40px;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr);
-    margin-right: calc(-1 * max(0px, (min(1160px, 100vw - 48px) - 100%) / 2));
-  }
-  .hero.has-film .lede { margin-bottom: 22px; }
-}
-
-.film { margin: 26px 0 0; }
-@media (min-width: 1000px) { .film { margin: 0; } }
+   影片是主体内容的一部分:始终留在主栏内居中,不能在宽屏断点被推到侧边或探出版心。 */
+.hero.has-film { padding-bottom: 30px; }
+.film { margin: 28px auto 0; max-width: 100%; }
 .film-stage {
   position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
   padding: 0; overflow: hidden; cursor: pointer;
@@ -613,17 +602,18 @@ header.site nav a:hover { color: var(--ink); }
 .graph-wrap { --bleed: 0px; --gx: 1; --canvas: 1148px; --panel-w: 0px; }
 /* 面板一开就要多占 330+16,不把终点一起加宽的话,画布会被挤掉三分之一 ——
    而那恰好是你点节点、最想看清高亮链路的时刻。 */
-.graph-wrap:has(.graph-stage.with-panel) { --panel-w: 346px; }
+.graph-wrap.has-trace { --panel-w: 346px; }
 @media (min-width: 820px) {
   /* 终点 = 画布自然宽 + 面板宽 + 容器内边距;--canvas 由 build.py 按真实布局写入 */
   .graph-wrap { --bleed: max(0px, (min(calc(var(--canvas) + var(--panel-w) + 14px), 100vw - 48px) - 100%) / 2); }
 }
 .graph-bleed { margin-inline: calc(-1 * var(--bleed) * var(--gx)); }
-/* 够高才粘住:矮屏粘住会把图的下半截钉在视口外,那还不如直接给展开态 */
-@media (min-width: 820px) and (min-height: 760px) and (prefers-reduced-motion: no-preference) {
+/* 桌面宽度就启用粘性段。Windows 浏览器常见可用高度低于 760px;
+   高度门槛会让 sticky 在 Edge/Chrome 上看起来"消失"。 */
+@media (min-width: 820px) {
   .graph-wrap { --gx: 0; }
   /* 跑道要占真实高度:粘停范围是 track 的内容盒,padding 不算数,所以用一个空块而非 padding */
-  .graph-runway { height: 38vh; }
+  .graph-runway { height: max(220px, 38vh); }
   .graph-sticky { position: sticky; top: 76px; }   /* 让开顶栏(≈74px) */
 }
 .graph-stage { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
@@ -632,9 +622,10 @@ header.site nav a:hover { color: var(--ink); }
   .graph-stage.with-panel { grid-template-columns: minmax(0, 1fr) 330px; }
 }
 .graph-scroll {
-  overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line);
+  overflow-x: auto; overflow-y: auto; border: 1px solid var(--line);
   border-radius: 18px; background: var(--card); padding: 6px;
   -webkit-overflow-scrolling: touch;
+  max-height: calc(100vh - 146px);
   /* 藏掉横向滚动条:经典滚动条(非覆盖式)在"刚好放得下"的临界点上会反复出现/消失,
      每次都让容器高度跳 15px —— 底下的内容跟着抽。滑动本身不受影响,提示行负责告知。 */
   scrollbar-width: none;

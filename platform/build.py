@@ -571,6 +571,7 @@ GRAPH_JS = """
   var svg = document.getElementById('graph-svg');
   var panel = document.querySelector('[data-trace]');
   var stage = document.querySelector('.graph-stage');
+  var wrap = document.querySelector('.graph-wrap');
   if (!svg || !panel) return;
 
   var preds = {};
@@ -609,6 +610,7 @@ GRAPH_JS = """
     syncChips(null);
     panel.hidden = true;
     if (stage) stage.classList.remove('with-panel');
+    if (wrap) wrap.classList.remove('has-trace');
     syncHint();          // 面板收起后画布变宽,提示行要跟着重算
   }
 
@@ -662,6 +664,7 @@ GRAPH_JS = """
 
     panel.hidden = false;
     if (stage) stage.classList.add('with-panel');
+    if (wrap) wrap.classList.add('has-trace');
     syncHint();          // 面板占掉 330px 后画布又变窄,提示行要跟着重算
     keepVisible(id);
   }
@@ -701,11 +704,10 @@ GRAPH_JS = """
   syncHint();
 
   // 展开:滚到这一节先粘住,把画布从版心宽推到整张图放得下(--gx 0→1),再放行
-  var wrap = document.querySelector('.graph-wrap');
   var track = document.querySelector('[data-graph-track]');
   var stick = document.querySelector('[data-graph-sticky]');
   var runway = document.querySelector('.graph-runway');
-  var canStick = window.matchMedia('(min-width: 820px) and (min-height: 760px) and (prefers-reduced-motion: no-preference)');
+  var canStick = window.matchMedia('(min-width: 820px)');
   var geo = null;        // 几何只在 resize 时量一次;滚动中只做算术,不读布局
   var queued = false;
   var lastP = -1;
