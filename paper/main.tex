@@ -1,34 +1,28 @@
 \documentclass[UTF8,zihao=-4]{ctexart}
 
-\usepackage[a4paper,margin=2.4cm]{geometry}
-\usepackage{amsmath,amssymb,booktabs,array,longtable}
-\usepackage{amsthm}
-\usepackage{graphicx}
-\usepackage{float}
-\usepackage{enumitem}
-\usepackage{microtype}
+\usepackage[a4paper,margin=2.35cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,booktabs,array,longtable}
+\usepackage{graphicx,float,enumitem,microtype}
 \usepackage[font=small,labelfont=bf]{caption}
-\usepackage{algorithm}
-\usepackage{algpseudocode}
+\usepackage{algorithm,algpseudocode}
 \usepackage[table]{xcolor}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc}
-\usepackage{titlesec}
-\usepackage{titletoc}
-\usepackage{fancyhdr}
+\usepackage{titlesec,titletoc,fancyhdr}
 \usepackage{hyperref}
 
-% ---- 配色(与封面统一) ----
-\definecolor{coverbg}{RGB}{9,24,42}      % 封面底:深海军蓝
-\definecolor{coverbg2}{RGB}{13,33,56}    % 封面底栏
-\definecolor{gold}{RGB}{201,162,77}      % 封面金
-\definecolor{cyanx}{RGB}{96,186,208}     % 数据青
-\definecolor{ink}{RGB}{232,238,245}      % 封面主文字
-\definecolor{muted}{RGB}{138,158,180}    % 封面次级文字
-\definecolor{faint}{RGB}{60,84,110}      % 封面极淡分隔
-\definecolor{accent}{RGB}{16,54,92}      % 正文强调:深蓝
-\definecolor{rulegold}{RGB}{170,134,56}  % 正文金(略深,保证印刷可读)
-\definecolor{graytext}{RGB}{110,122,138}  % 页脚灰
+\definecolor{coverbg}{RGB}{9,24,42}
+\definecolor{coverbg2}{RGB}{13,33,56}
+\definecolor{gold}{RGB}{201,162,77}
+\definecolor{cyanx}{RGB}{96,186,208}
+\definecolor{ink}{RGB}{232,238,245}
+\definecolor{muted}{RGB}{138,158,180}
+\definecolor{faint}{RGB}{60,84,110}
+\definecolor{accent}{RGB}{16,54,92}
+\definecolor{rulegold}{RGB}{170,134,56}
+\definecolor{graytext}{RGB}{110,122,138}
+\definecolor{success}{RGB}{50,115,82}
+\definecolor{warning}{RGB}{160,91,49}
 
 \hypersetup{
   colorlinks=true,
@@ -36,44 +30,39 @@
   citecolor=accent,
   urlcolor=accent,
   pdfauthor={周梓煜、张心湉、许艺馨、张修博、刘迅羽、王佳祺},
-  pdftitle={可解释 Alpha 因子生成智能体},
+  pdftitle={结构化字段之外，文本还剩多少 Alpha？},
 }
 
-% ---- 版式 ----
 \setlength{\parindent}{2em}
 \setlength{\parskip}{0.25em}
-\renewcommand{\arraystretch}{1.2}
+\setlength{\headheight}{16pt}
+\renewcommand{\arraystretch}{1.22}
 \captionsetup{labelfont={bf,color=accent}}
-\captionsetup[table]{skip=4pt}
+\captionsetup[table]{skip=5pt}
 \captionsetup[figure]{skip=6pt}
+\tolerance=2000
+\emergencystretch=2.5em
 
-% ---- 章节标题 ----
 \titleformat{\section}
   {\normalfont\heiti\fontsize{15}{20}\selectfont\color{accent}}
   {\color{rulegold}\thesection}{0.7em}{}
   [{\vspace{2pt}\color{rulegold}\titlerule[0.9pt]}]
 \titlespacing*{\section}{0pt}{1.7em}{0.9em}
-
 \titleformat{\subsection}
   {\normalfont\heiti\fontsize{12}{16}\selectfont\color{accent}}
   {\color{rulegold}\thesubsection}{0.6em}{}
 \titlespacing*{\subsection}{0pt}{1.2em}{0.55em}
 
-% ---- 页眉页脚 ----
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\color{accent}可解释 Alpha 因子生成智能体}
+\fancyhead[L]{\small\color{accent}结构化字段之外，文本还剩多少 Alpha？}
 \fancyhead[R]{\small\color{graytext}\nouppercase{\leftmark}}
 \fancyfoot[C]{\small\color{graytext}\thepage}
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
-\renewcommand{\headrule}{%
-  \vspace{2pt}{\color{rulegold}\hrule height 0.7pt}}
-\fancypagestyle{plain}{\fancyhf{}%
-  \fancyfoot[C]{\small\color{graytext}\thepage}%
-  \renewcommand{\headrule}{}}
+\renewcommand{\headrule}{\vspace{2pt}{\color{rulegold}\hrule height 0.7pt}}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\small\color{graytext}\thepage}\renewcommand{\headrule}{}}
 
-% ---- 目录样式 ----
 \titlecontents{section}[0em]
   {\addvspace{7pt}\heiti\color{accent}}
   {\contentslabel{1.7em}}{}
@@ -95,42 +84,29 @@
   \clearpage}
 \makeatother
 
-% ---- 摘要标题 ----
 \renewcommand{\abstractname}{\color{accent}\heiti 摘\hspace{0.6em}要}
-
-% ---- 断行容差(中西混排:代码词与汉字之间无可伸缩空白,易溢出) ----
-\tolerance=2000
-\emergencystretch=2.5em
-
-% ---- 表格 ----
 \newcommand{\theadrow}{\rowcolor{accent!8}}
-
-% ---- 定理环境 ----
-\newtheoremstyle{accentthm}{9pt}{9pt}{}{}%
-  {\heiti\color{accent}}{.}{0.55em}{}
-\theoremstyle{accentthm}
-\newtheorem{definition}{定义}
-\newtheorem{proposition}{命题}
-
-% ---- 记号 ----
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\RankIC}{\mathrm{RankIC}}
 \newcommand{\ICIR}{\mathrm{ICIR}}
 \DeclareMathOperator{\corr}{corr}
 \DeclareMathOperator{\rank}{rank}
-\DeclareMathOperator{\sgn}{sgn}
-
-% ---- 算法样式微调 ----
+\newtheoremstyle{accentthm}{9pt}{9pt}{}{}{\heiti\color{accent}}{.}{0.55em}{}
+\theoremstyle{accentthm}
+\newtheorem{definition}{定义}
+\newtheorem{proposition}{命题}
 \algrenewcommand\algorithmicrequire{\textbf{输入：}}
 \algrenewcommand\algorithmicensure{\textbf{输出：}}
 \floatname{algorithm}{算法}
 
-\title{\vspace{-0.6cm}可解释 Alpha 因子生成智能体：\\[2pt]
-\large 点时间对齐、受限表达式引擎与确定性回测的可信底座}
+\input{../results/paper_update/final/macros.tex}
+
+\title{结构化字段之外，文本还剩多少 Alpha？\\
+\large 以 A 股业绩预告为例的可解释因子智能体与增量检验}
 \author{第 14 组\\[2pt]
 周梓煜（组长）\quad 张心湉 \quad 许艺馨 \quad 张修博 \quad 刘迅羽 \quad 王佳祺\\[2pt]
 \small AI 金融研学实训营 · AI 篇 · 主题四}
-\date{\today}
+\date{2026 年 7 月}
 
 \begin{document}
 
@@ -138,289 +114,413 @@
 
 \begin{abstract}
 \noindent
-本文提出并实现一个\textbf{可解释 Alpha 因子生成智能体}，用以回答一个具体的研究问题:大语言模型（LLM）能否在\emph{不参与任何数值计算}的前提下，稳定地生成具备经济解释的 A 股 Alpha 因子。系统遵循“\textbf{LLM 提出假设、确定性代码负责计算与验证}”的分工范式——语言模型仅用于生成候选因子、辅助语义查重与阅读回测结果，所有关于收益、IC 与稳定性的数字一律由本地 Python 程序产生，从架构上杜绝“数值幻觉”与回测泄漏。
-我们的贡献有三:(i) 给出行情、财务与股票池三表的\textbf{数据契约}，并把防前视（no-look-ahead）约束形式化为点时间（point-in-time, PIT）合并算子 \code{pit\_merge}，配以可证伪的单元测试;(ii) 设计一个仅允许白名单算子的\textbf{受限表达式引擎}，在支持因子可组合的同时禁止任意代码执行，使“可解释”与“可审计”落到实处;(iii) 构建一条\textbf{完全无 LLM 的确定性回测流水线}，产出 Rank IC、ICIR、分组收益、多空收益、换手率与成本后收益，并按日期滚动完成样本外划分。
-在聚源 SQL Server 登录验证与 JYDB 元数据快照（2739 张表、81757 个字段）完成后，本文进一步导出行情、财务与股票池三张 raw 表，并在 2020--2021 年沪深 A 股 price-observed 股票池上重跑确定性流水线。初步样本外结果显示，部分基线因子在 2021 年具备正 Rank IC 与 ICIR，但两只 mock 生成候选因子未表现出稳健正向样本外收益，其中 \code{value\_profit\_blend} 还与既有基线高度相关。因此，本文的实证结论被限定为:可信底座已经能够在聚源真实数据上可复现运行，并能拒绝证据不足或新颖性不足的候选因子，而非宣称发现稳定 alpha。
+本文研究一个可证伪的问题：当同一事件的关键数字已经以结构化字段公开时，大语言模型（LLM）从公告正文中提取的语义还能否提供增量 Alpha？我们以 2019--2021 年 A 股业绩预告为检验场，构建“结构化预告幅度”对照组，并设计“结构化字段 + 文本语义”处理组。系统遵循严格职责边界：LLM 只提出假说与解释结果，字段校验、点时间对齐、因子计算、横截面中性化、样本外评价和终局裁决全部由确定性代码完成，回测过程中不调用 LLM。
+
+真实数据包含 39,294 条业绩预告原始记录、13,283 条可用于增长幅度对照的事件，以及覆盖 2015--2021 年、5,809,082 个股票—交易日观测的点时间面板。结构化对照因子取预告增长率区间中点，在披露日的下一交易日起生效，以 20 日复权前向收益评价。60 日持有、复权并完成市值和行业中性化后，全样本平均 Rank IC 为 0.0278，ICIR 为 0.3658；考虑重叠收益后的 Newey--West $t$ 值为 2.56。但分年度结果从 2019 年的 0.0490、2020 年的 0.0467下降到 2021 年封存测试段的 $-0.0049$，说明样本内强度没有在最终年度延续。
+
+公告原文已经落地，且可得性规则已登记；然而，处理组仍缺少冻结模型版本、文本哈希缓存与可复现的离线语义特征。因此本文不填造文本增量指标，终局结论为“证据不足”，而不是“文本有效”或“文本无效”。本文的主要贡献是一个能诚实拒绝未来字段、重复候选和证据不完整结论的研究装置：它把可解释性前移到假说生成阶段，并以不可逆研究闸门和可追溯产物保证数值裁决不受 LLM 影响。
 \end{abstract}
 
-\noindent\textbf{关键词：} Alpha 因子;可解释性;点时间对齐;样本外回测;大语言模型;确定性计算;防前视
+\noindent\textbf{关键词：} Alpha 因子；大语言模型智能体；业绩预告；增量检验；点时间对齐；Rank IC；样本外检验
+
+\begin{center}
+\begin{minipage}{0.94\linewidth}
+\small
+\textbf{研究结论一句话：}
+结构化业绩预告幅度在 2019--2020 年表现出横截面预测力，但在 2021 年测试段失效；由于可复现的文本语义处理组尚未形成，当前不能判断“文本是否带来额外 Alpha”，合理结论是证据不足。
+\end{minipage}
+\end{center}
 
 \customtoc
 
 \section{引言}
-Alpha 因子研究的核心难点，从来不是让模型“说出一句听起来很聪明的话”，而是能否把一个候选假设转化为\emph{可计算、可验证、可复现}的研究对象。对量化研究而言，任何关于收益、信息系数（IC）或稳定性的结论，都必须来自可审计的数值流程，而不能是语言模型的口头裁定。近年来大语言模型被大量引入因子挖掘\cite{kou2025,alphaformer2026}，但一旦让模型直接“判断因子好坏”或“参与回测计算”，就会同时引入两类风险:\textbf{数值幻觉}（模型编造并不成立的统计量）与\textbf{回测泄漏}（在 $T$ 日的因子里混入了 $T$ 日之后才可得的信息）。这两类风险恰恰是既有实证文献反复强调的可复现性危机的放大器\cite{mclean2016,gkx2020}。
 
-本项目从设计之初就以一条铁律划清边界:\textbf{回测里绝不调用 LLM}。语言模型负责提出因子想法、解释经济含义、阅读回测摘要;确定性代码负责字段可得性检查、点时间合并、表达式求值、样本外检验与报告生成（图~\ref{fig:arch}）。这样既保留了 LLM 的探索效率，又把所有数值判断交还给适合做计算、且可被逐行审计的模块。
+传统因子研究通常走两条路线：研究员从经济机制出发手工提出变量，或由遗传规划、符号回归与机器学习在大规模表达式空间中搜索。前者有解释但速度慢，后者搜索效率高，却容易产生事后解释、数据挖掘和样本外衰减。资产定价文献早已表明，公开后的因子收益会显著下降，样本内漂亮并不等于可交易的稳定规律\cite{mclean2016}；机器学习虽能容纳非线性和高维交互，也仍必须依赖严格的时间切分与样本外评估\cite{gkx2020}。
+
+LLM 为因子研究带来一种新的可能：模型可以用自然语言组织经济机制，再把假说翻译成结构化、受限的表达式。近期工作已探索 LLM 生成可执行 Alpha 候选与多智能体评价\cite{kou2025}，符号回归方向也在尝试用 Transformer 直接生成因子表达式\cite{alphaformer2026}。但“能生成”并不是一个研究结论。若模型同时写代码、看测试结果并裁定因子优劣，系统会把假说提出者、运动员和裁判合并为同一角色，数值幻觉与自动化数据窥探便难以区分。
+
+本文因此把问题收窄为一个明确的增量检验：
+\[
+  \text{公告文本语义是否在结构化业绩预告字段之外提供样本外 Rank IC 增量？}
+\]
+业绩预告适合这一设计，因为增长区间、预告类型与利润区间已经结构化；LLM 的合理位置不是重新描述这些数字，而是识别归因、持续性、不确定性和一次性事项等语义。仅结构化字段的因子构成控制组，结构化字段加文本语义构成处理组。若文本增量为正，说明正文中存在未被结构化字段吸收的信息；若增量不显著，同样是完整结论。若处理组证据缺失，则必须停在“证据不足”，不能用模拟值填空。
 
 \paragraph{本文贡献。}
 \begin{enumerate}[leftmargin=2.2em,itemsep=2pt,topsep=2pt]
-  \item \textbf{可证伪的防前视契约。} 我们把 no-look-ahead 约束形式化为点时间合并算子（\S\ref{sec:pit}，定义~\ref{def:pit}），并给出其防泄漏性质（命题~\ref{prop:noleak}）与对应的可证伪单元测试。
-  \item \textbf{可审计的受限表达式引擎。} 因子被表示为携带经济解释与字段依赖的结构化对象，求值走白名单 AST，禁止任意代码执行（\S\ref{sec:engine}），使“可解释”不止于自然语言，而是可回溯到字段与算子。
-  \item \textbf{完全确定性的回测流水线与端到端闭环。} 生成—校验—回测—反馈四步闭环中，唯有回测一步不碰 LLM（\S\ref{sec:agent}），并在聚源真实 raw 数据上完成初步样本外实证（\S\ref{sec:exp}）。
+  \item 提出一个\textbf{假说先行、数值隔离}的可解释因子智能体。LLM 只负责提出候选与阅读结果，回测、显著性和终局状态由纯代码生成。
+  \item 把防前视约束落实为\textbf{点时间数据契约}。公告在日期信息不含精确时刻时统一于下一交易日生效，财务记录只在公告日之后可见。
+  \item 设计\textbf{不可逆研究闸门}：合同确认后冻结定义域与时间切分，验证尝试只增不减，测试段拆封后禁止回退。
+  \item 在聚源真实数据上完成结构化对照的确定性实证，并公开报告其 2021 年失效与文本处理组缺证据的状态，避免把研究系统包装成必然成功的 Alpha 机器。
 \end{enumerate}
 
-\section{相关工作与定位}
-机器学习驱动的资产定价已被系统研究\cite{gkx2020}，而学术因子被公开后收益衰减的现象\cite{mclean2016}提示我们:因子研究的价值高度依赖\emph{诚实的样本外评估}。近期一类工作尝试用 LLM 自动搜寻策略\cite{kou2025} 或以 Transformer 做 Alpha 因子的符号回归\cite{alphaformer2026}，展示了“语言/序列模型提出因子”的潜力。
+\section{相关工作与研究定位}
 
-与这些工作相比，本项目的定位不在“更强的搜索器”，而在\textbf{可信底座}:我们主张先把\emph{数据契约、防前视、样本外划分、确定性评价}这套地基做扎实、做成可测试的工程约束，再谈生成能力。换言之，LLM 的角色被刻意收敛为“假设提出者与结果阅读者”，其产出必须穿过确定性校验与回测才能被接受。这一保守设计以牺牲部分自动化程度为代价，换取了结论的\emph{可审计性}——我们认为这正是当前 LLM 因子研究最稀缺的性质。
+\subsection{横截面收益预测与样本外纪律}
 
-\section{系统架构}\label{sec:arch}
-系统由六层组成:配置与数据契约、数据管线、因子引擎、回测模块、LLM 封装、Agent 闭环。核心链路是一条“生成→校验→回测→反馈”的闭环，其中\textbf{只有回测一步是纯代码、不含 LLM}（图~\ref{fig:arch}）。数据自 \code{data/raw} 经清洗对齐得到 \code{panel.parquet}（\code{data/processed}），再逐层沉淀因子与 LLM 中间结果至 \code{data/cache}。
+本文关注的是同一交易日不同股票之间的相对排序，而不是单只股票收益的时间序列点预测。经典 Fama--MacBeth 方法先在每个时期做横截面回归，再对时期系数求均值\cite{fama1973}；工业界常用的 Rank IC 也遵循相同的“先横截面、后时间聚合”思想。两者都要求特征在预测时点真实可得。
+
+McLean 与 Pontiff 对已发表预测变量的研究表明，收益可预测性在样本外及论文发表后明显衰减\cite{mclean2016}。这使得日期有序切分、参数邻域与最终封存测试比单个样本内最优点更重要。本文不采用随机打乱，避免未来市场状态渗入训练阶段。
+
+\subsection{机器学习、符号回归与 LLM 因子生成}
+
+Gu、Kelly 与 Xiu 展示了机器学习在经验资产定价中的潜力，同时也强调样本外比较的重要性\cite{gkx2020}。AlphaFormer 将因子发现表述为端到端符号回归，目标是直接生成可解释数学表达式\cite{alphaformer2026}。Kou 等提出由 LLM 生成 Alpha 候选并经多智能体系统筛选的框架\cite{kou2025}。
+
+本文与上述研究的差异不在搜索能力更强，而在权限边界更窄：不设置自由代码生成 Agent，也不设置以自然语言裁定数值结果的 Eval Agent。候选只能使用登记字段和白名单算子；评价器不能被提示词改变；测试集结果不能流回候选改写。这一“受限自主”是可信度设计，而不是功能缺失。
+
+\subsection{本文的研究空缺}
+
+结构化事件数据与公告正文往往描述同一事实。如果只报告文本因子的单独 IC，就无法区分模型是否只是复述结构化数字。本文用处理组—对照组框架把 LLM 的必要性本身变成待检验对象，并允许三种终态：正向、负向、证据不足。
+
+\section{系统设计与研究治理}\label{sec:system}
+
+\subsection{职责边界}
+
+系统由研究合同、生成材料、候选池、规则校验、确定性回测、证据存储和结论模块构成。图~\ref{fig:architecture} 中，金色模块允许 LLM 参与语言任务，蓝色模块只运行确定性代码。
 
 \begin{figure}[H]
   \centering
   \begin{tikzpicture}[
-      x=1cm, y=1cm, font=\small,
-      det/.style={draw=accent!75, fill=accent!7, rounded corners=3pt, align=center,
-                  text=accent, minimum width=3.0cm, minimum height=1.2cm, inner sep=2pt},
-      llm/.style={draw=rulegold, fill=rulegold!12, rounded corners=3pt, align=center,
-                  text=black!78, minimum width=3.0cm, minimum height=1.2cm, inner sep=2pt},
-      key/.style={det, line width=1.1pt, fill=accent!14},
-      flow/.style={-{Latex[length=2.2mm]}, draw=black!55, line width=0.7pt},
-      lbl/.style={font=\scriptsize, text=black!55, inner sep=2pt}
-    ]
-    %% ---- 上行:四步闭环 ----
-    \node[llm] (gen) at (1.60,3.0) {生成\\[-1pt]{\scriptsize LLM 提出假设}};
-    \node[llm] (val) at (5.25,3.0) {校验\\[-1pt]{\scriptsize 规则层 + LLM 查重}};
-    \node[key] (bt)  at (8.90,3.0) {回测\\[-1pt]{\scriptsize\bfseries 纯代码 · 无 LLM}};
-    \node[llm] (fb)  at (13.50,3.0) {反馈\\[-1pt]{\scriptsize LLM 读结果}};
-
-    \draw[flow] (gen) -- (val);
-    \draw[flow] (val) -- (bt);
-    \draw[flow] (bt)  -- node[lbl, above]{回测指标} (fb);
-
-    %% 迭代回环(走顶部,不穿过任何方框)
-    \draw[flow] (fb.north) -- ++(0,0.8)
-      -- node[lbl, above]{迭代:下一轮改写方向} ($(gen.north)+(0,0.8)$) -- (gen.north);
-
-    %% ---- 下行:确定性底座 ----
-    \node[det] (cfg)  at (1.60,0.7) {配置 \& 数据契约};
-    \node[det] (pipe) at (5.25,0.7) {数据管线\\[-1pt]{\scriptsize PIT 合并 / 中性化}};
-    \node[det] (eng)  at (8.90,0.7) {因子引擎\\[-1pt]{\scriptsize 受限表达式(白名单)}};
-    \node[llm] (card) at (13.50,0.7) {汇总\\[-1pt]{\scriptsize 因子卡片}};
-
-    \draw[flow] (cfg)  -- (pipe);
-    \draw[flow] (pipe) -- (eng);
-    \draw[flow] (eng)  -- node[lbl, right]{无前视因子面板} (bt);
-    \draw[flow] (fb)   -- (card);
-
-    %% ---- 图例 ----
-    \fill[accent!7, draw=accent!75, rounded corners=1pt]   (0.10,-0.75) rectangle (0.48,-0.42);
-    \node[lbl, anchor=west] at (0.60,-0.585) {确定性代码:负责一切数值};
-    \fill[rulegold!12, draw=rulegold, rounded corners=1pt] (5.25,-0.75) rectangle (5.63,-0.42);
-    \node[lbl, anchor=west] at (5.75,-0.585) {LLM:仅提出假设、语义查重、阅读结果};
+    node distance=0.72cm and 0.75cm,
+    det/.style={draw=accent!75,fill=accent!7,rounded corners=3pt,align=center,
+      text=accent,minimum width=2.65cm,minimum height=1.05cm},
+    llm/.style={draw=rulegold,fill=rulegold!12,rounded corners=3pt,align=center,
+      text=black!78,minimum width=2.65cm,minimum height=1.05cm},
+    flow/.style={-{Latex[length=2.1mm]},draw=black!52,line width=0.7pt},
+    note/.style={font=\scriptsize,text=black!58,align=center}
+  ]
+    \node[det] (contract) {研究合同\\{\scriptsize 冻结口径与切分}};
+    \node[llm,right=of contract] (proposal) {候选提案\\{\scriptsize LLM 只写假说}};
+    \node[det,right=of proposal] (validate) {规则校验\\{\scriptsize 字段/PIT/白名单}};
+    \node[det,right=of validate] (backtest) {确定性回测\\{\scriptsize Rank IC / NW $t$}};
+    \node[det,below=1.05cm of backtest] (evidence) {证据存储\\{\scriptsize JSON/CSV/图表/哈希}};
+    \node[llm,left=of evidence] (interpret) {结果解释\\{\scriptsize LLM 不改数字}};
+    \node[det,left=of interpret] (verdict) {终局裁决\\{\scriptsize 正/负/证据不足}};
+    \draw[flow] (contract)--(proposal);
+    \draw[flow] (proposal)--(validate);
+    \draw[flow] (validate)--(backtest);
+    \draw[flow] (backtest)--(evidence);
+    \draw[flow] (evidence)--(interpret);
+    \draw[flow] (interpret)--(verdict);
+    \draw[flow] (verdict.west) -- ++(-0.45,0) |- node[note,left,pos=0.25]{仅开发段允许\\形成新合同} (contract.south);
+    \node[note,below=0.28cm of validate]{确定性规则拥有最终否决权};
   \end{tikzpicture}
-  \caption{Alpha 因子生成智能体的主链路。上行是“生成→校验→回测→反馈”的四步闭环，下行是支撑它的确定性底座。蓝色为确定性代码，负责一切数值;金色为 LLM，仅参与提出假设、语义查重与阅读结果。\textbf{回测一步完全不触碰 LLM}，两层之间只以结构化对象交互。}
-  \label{fig:arch}
+  \caption{系统权限边界。LLM 参与候选语言和结果解释，但所有数值、验证预算、测试拆封与终局状态均由确定性代码控制。}
+  \label{fig:architecture}
 \end{figure}
 
-\section{数据契约与点时间对齐}\label{sec:pit}
-数据契约由三张表构成:\code{prices}（日频行情与复权因子 \code{adj\_factor}）、\code{fundamentals}（财务字段与公告日 \code{ann\_date}）、\code{universe}（历史成分股，用于避免幸存者偏差）。防前视的关键在于:财务数据必须按\emph{公告日} \code{ann\_date} 而非\emph{报告期} \code{report\_period} 对齐——一条报告期更早、但在 $T$ 日之后才公告的记录，在 $T$ 日是不可得的。
+\subsection{受限表达式与校验}
 
-\begin{definition}[点时间可见集与因子面板]\label{def:pit}
-对交易日 $T$ 与个股 $i$，记其\emph{点时间可见财务集}为
+候选因子以结构化对象保存，包含名称、受限表达式、经济逻辑、字段依赖、知识来源与风险。表达式引擎只允许算术及 \code{rank}、\code{ts\_mean}、\code{ts\_std}、\code{delay}、\code{delta}、\code{safe\_div} 等白名单算子。属性访问、文件读写、网络请求和任意函数调用均被拒绝。
+
+规则校验先于语义查重，检查字段是否存在、是否登记可得性、是否引用未来收益标签、表达式是否可解析。语义模型只负责解释“是否可能与既有因子重复”，不能推翻规则拒绝。
+
+\subsection{不可逆研究状态机}
+
+研究流程按以下八个节点推进：
 \[
-  \mathcal{F}_{i}(T) \;=\; \bigl\{\, r \in \text{fundamentals}_i \;:\; \code{ann\_date}(r) \le T \,\bigr\},
+\text{线索}\rightarrow\text{合同}\rightarrow\text{材料}\rightarrow\text{候选池}
+\rightarrow\text{校验}\rightarrow\text{训练+验证}\rightarrow\text{测试拆封}\rightarrow\text{结论}.
 \]
-点时间合并算子 \code{pit\_merge} 取 $\mathcal{F}_i(T)$ 中\emph{公告日最新}的一条与 $T$ 日行情拼接，得到因子面板单元 $x_{i,T}=\phi\bigl(\text{prices}_{i,T},\,\arg\max_{r\in\mathcal{F}_i(T)}\code{ann\_date}(r)\bigr)$。因子在 $T$ 日的取值只能是 $\{x_{j,T}\}_{j\in\text{universe}(T)}$ 的函数。
+合同确认后，股票池、日期、字段、目标期限和可证伪断言被哈希冻结；验证阶段每个假说最多消耗两次修改预算，回滚不返还；测试拆封后禁止新增验证修改。最终只允许 \code{positive}、\code{negative} 或 \code{insufficient\_evidence}。
+
+本次记录的运行编号为 \code{\PaperRunID}。离线回放中的每个数值都引用已落盘产物，页面不能自行注入数字。需要说明的是，当前 run record 是在确定性结果生成后导出的审计记录，能够证明展示数字与产物一致，但不能等同于第三方时间戳的前瞻性预注册；该限制在第~\ref{sec:limitations} 节讨论。
+
+\section{数据、变量与防前视设计}\label{sec:data}
+
+\subsection{数据来源与样本}
+
+核心数据来自学校提供的聚源 JYDB，本地原始数据不进入公共仓库。表~\ref{tab:data-summary} 给出本次论文使用的数据范围。行情—财务点时间面板覆盖 2015 年 1 月 5 日至 2021 年 12 月 31 日，共 \PanelRows 个股票—交易日观测、\PanelStocks 只股票。业绩预告原始表含 \RawForecastRows 条记录、4,090 个证券代码，公告正文列全部非空；要求增长率区间可构造、去重并映射到交易日后，结构化对照使用 \UsableEventRows 条事件。
+
+\begin{table}[H]
+  \centering
+  \caption{真实数据样本概况}
+  \label{tab:data-summary}
+  \begin{tabular}{lrrll}
+    \toprule
+    数据集 & 记录数 & 证券数 & 起始日期 & 结束日期 \\
+    \midrule
+    业绩预告原始表 & 39,294 & 4,090 & 2019-06-03 & 2021-12-31 \\
+    可用结构化事件 & 13,283 & -- & 2019-06-03 & 2021-12-30 \\
+    点时间股票面板 & 5,809,082 & 4,289 & 2015-01-05 & 2021-12-31 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+研究合同把 2019 年作为训练观察期、2020 年作为验证期、2021 年作为最终测试期。面板虽然从 2015 年开始，但可用业绩预告事件始于 2019 年 6 月，因此本次事件实证的有效时间跨度只有约两年半；我们不把更早的无事件面板观测误写成事件样本。
+
+\subsection{点时间可得性}
+
+\begin{definition}[点时间可见集]\label{def:pit}
+对交易日 $T$ 与股票 $i$，点时间可见事件集为
+\[
+  \mathcal{E}_{i}(T)=
+  \{e:\text{code}(e)=i,\ \text{effective\_date}(e)\le T\}.
+\]
+若公告只有日期而没有可靠的盘中时刻，则
+\[
+  \text{effective\_date}(e)=
+  \text{next\_trading\_date}(\text{InfoPublDate}(e)).
+\]
+交易日 $T$ 的事件因子只允许依赖 $\mathcal{E}_{i}(T)$ 中最新事件。
 \end{definition}
 
-\begin{proposition}[条件化防泄漏性]\label{prop:noleak}
-若原始库中的 \code{ann\_date} 真实反映信息首次可得日，行情与复权字段按研究口径正确构造，且因子求值只依赖带有字段可得性元数据证明的 $\{x_{j,T}\}_{j}$，则对任意 $T$，\code{pit\_merge} 路径不会引入所有 $\code{ann\_date}>T$ 的财务记录。
+\begin{proposition}[无主动前视]\label{prop:noleak}
+若供应商 \code{InfoPublDate} 真实反映首次披露日期，交易日历正确，且因子只读取定义~\ref{def:pit} 的可见集，则在 $T$ 日构造的事件因子不会主动使用披露日晚于或等于 $T$ 且尚未生效的记录。
 \end{proposition}
-\noindent\emph{证明思路。} 由定义~\ref{def:pit}，$x_{i,T}$ 的构造在 $\mathcal{F}_i(T)$ 上取上确界，而 $\mathcal{F}_i(T)$ 按“$\code{ann\_date}\le T$”硬过滤，\allowbreak 故任何公告日晚于 $T$ 的记录都不在拼接来源中;字段可得性元数据记录每个字段的 \code{source}、\code{available\_date}、\code{rule} 与 \code{pit\_protected}，校验层和回测层均拒绝缺少证明的 PIT 敏感字段，从而把可控代码路径限定在该合并结果上。$\hfill\square$
 
-该性质在实现中由 \code{pit\_merge} 强制执行（算法~\ref{alg:pit}），并配以\emph{可证伪}的单元测试:构造一条公告日晚于 $T$ 的“未来”记录，断言它\textbf{绝不}出现在 $T$ 日面板中;同时测试面板字段可得性元数据的附着、缺失元数据的拒绝，以及直接调用回测绕过校验层时的拒绝。测试失败即视为防线失守。
+\noindent\emph{说明。} 实现使用交易日历的 \code{searchsorted(..., side="right")} 将事件映射到严格晚于披露日的第一个交易日，并断言所有生效日均满足 \code{eff\_date > InfoPublDate}。若持有期内出现新预告，最新已生效事件覆盖旧事件。同一披露日对应多个报告期时，只保留最近报告期，避免把下一年度指引混入当期信号。
 
-\begin{algorithm}[H]
-\caption{\code{pit\_merge}:点时间合并（防前视核心）}
-\label{alg:pit}
-\begin{algorithmic}[1]
-\Require 行情表 \code{prices}、财务表 \code{fundamentals}（含 \code{ann\_date}）
-\Ensure 无前视的因子面板 \code{panel}
-\ForAll{交易日 $T$，个股 $i \in \text{universe}(T)$}
-  \State $\mathcal{F}_i(T) \gets \{\,r \in \text{fundamentals}_i : \code{ann\_date}(r) \le T\,\}$
-  \If{$\mathcal{F}_i(T) = \varnothing$} \State 该单元置空并跳过 \EndIf
-  \State $r^\star \gets \arg\max_{r \in \mathcal{F}_i(T)} \code{ann\_date}(r)$ \Comment{取最新已公告记录}
-  \State $\code{panel}[i,T] \gets \text{join}\bigl(\text{prices}_{i,T},\, r^\star\bigr)$
-\EndFor
-\State \Return \code{panel}
-\end{algorithmic}
-\end{algorithm}
+\subsection{结构化对照与文本处理组}
 
-\section{方法}\label{sec:method}
-
-\subsection{受限因子表达式引擎}\label{sec:engine}
-因子以结构化对象 \code{FactorExpr} 表示，携带名称、表达式、\emph{经济解释}、字段依赖与元数据。表达式求值走\textbf{受限 AST 解析}:只允许基础算术与一组注册的白名单算子——\code{rank}/\code{cs\_rank}（截面排序）、\code{ts\_mean}/\code{ts\_std}（时序统计）、\code{delay}/\code{delta}（滞后与差分）、\code{safe\_div}（防零除）、\code{signed\_log}（保号对数）。白名单之外的一切节点（函数调用、属性访问、下标等）在解析期即被拒绝，从而\textbf{禁止任意代码执行}。这一设计的意义在于:因子的“可解释性”不再停留于自然语言的经济故事，而是可以一路回溯到\emph{具体字段}与\emph{有限算子}，做到真正可审计。
-
-\subsection{基线因子库}
-实现内置五类基线因子，覆盖经典风格:\emph{价值}（估值比率）、\emph{质量}（盈利能力）、\emph{动量}（短期趋势）、\emph{低波动}（收益波动）与\emph{流动性}（交易活跃度）。基线一方面构成最小可用研究集合，另一方面作为 Agent 语义查重与效果比较的参照系——任何 LLM 候选因子都要先与基线比对，避免“换皮重复”。
-
-\subsection{回测与评价指标}\label{sec:metrics}
-回测完全由本地代码实现。设 $f_{i,t}$ 为个股 $i$ 在 $t$ 日的因子值，$R_{i,t+1}$ 为其前向收益，$N_t$ 为当日截面样本数。核心指标定义如下。
-
-\paragraph{Rank IC 与 ICIR。} 逐日计算因子与前向收益的秩相关，再对时间求稳定性:
+结构化对照的原始信号为预告增长率上下界的中点：
 \[
-  \RankIC_t \;=\; \corr\!\bigl(\rank(f_{\cdot,t}),\,\rank(R_{\cdot,t+1})\bigr),
+  g_e=\frac{\text{EGrowthRateFloor}_e+\text{EGrowthRateCeiling}_e}{2}.
+\]
+信号从下一交易日起持续 $h\in\{20,40,60\}$ 个交易日；同日横截面按 1\% 与 99\% 分位缩尾。60 日为先行主口径，20/40 日用于参数邻域描述，而不是从连续网格中挑选最优尖峰。
+
+文本处理组计划从 \code{ForcastContent} 中提取归因类型、持续性、管理层不确定性和一次性事项等语义，再比较“结构化字段 + 文本”相对“仅结构化字段”的增量。原始正文和下一交易日可得规则已经登记，但截至本次运行，尚未形成满足以下条件的处理组产物：固定模型版本、固定提示模板、文本哈希、离线缓存、输出模式验证以及逐事件可追溯特征。系统因此按 fail closed 原则不计算文本增量。
+
+\section{实证方法}\label{sec:method}
+
+\subsection{收益标签与横截面评价}
+
+令 $P^{adj}_{i,t}$ 为复权收盘价，主要收益标签为 20 日前向收益：
+\[
+  R^{(20)}_{i,t}=\frac{P^{adj}_{i,t+20}}{P^{adj}_{i,t}}-1.
+\]
+对每个交易日计算 Spearman 秩相关：
+\[
+  \RankIC_t=\corr\!\left(\rank(f_{i,t}),\rank(R^{(20)}_{i,t})\right),
   \qquad
-  \ICIR \;=\; \frac{\overline{\RankIC}}{\sigma(\RankIC)} .
+  \ICIR=\frac{\overline{\RankIC}}{\sigma(\RankIC)}.
 \]
+只有当日有效事件截面不少于 30 只股票时，该日才计入 IC 序列。
 
-\paragraph{分组与多空收益。} 按截面分位数将股票分为 $Q$ 组，$G_k(t)$ 为第 $k$ 组;多空组合取最高减最低组:
+\subsection{市值与行业中性化}
+
+为减少结构化预告幅度对公司规模和行业的被动暴露，在每个交易日做横截面 OLS：
 \[
-  r^{\mathrm{LS}}_{t+1} \;=\; \frac{1}{|G_Q(t)|}\!\!\sum_{i\in G_Q(t)}\!\! R_{i,t+1}
-  \;-\; \frac{1}{|G_1(t)|}\!\!\sum_{i\in G_1(t)}\!\! R_{i,t+1}.
+  f_{i,t}=\alpha_t+\beta_t\log(\text{MktCap}_{i,t})
+  +\sum_k\gamma_{k,t}\mathbf{1}(\text{Industry}_{i,t}=k)+\varepsilon_{i,t}.
 \]
+最终因子取残差 $\widehat{\varepsilon}_{i,t}$。行业标签按历史生效期展开，市值来自当日数据或 PIT 可见股本与收盘价的乘积。诊断结果显示，60 日完整中性化残差与对数市值的相关系数为 \ResidualSizeCorr，行业—日期组残差均值最大绝对值为 \ResidualIndustryMean；这证明数值残差化已经执行，但不意味着经济暴露在所有组合构造中完全消失。
 
-\paragraph{换手率与成本后收益。} 以持仓权重 $w_{i,t}$ 的逐期变动近似交易摩擦，成本后收益按 \code{cost\_bps} 扣减交易成本:
+\subsection{重叠收益与 Newey--West 修正}
+
+20 日前向收益高度重叠，逐日 IC 并非独立。朴素 $t$ 值会高估精度，因此本文以 20 阶 Bartlett 权重的 Newey--West 修正作为主要显著性参考\cite{newey1987}：
 \[
-  \text{turnover}_t \;=\; \tfrac{1}{2}\sum_i \bigl|w_{i,t}-w_{i,t-1}\bigr|,
+  \widehat{\Omega}
+  =\widehat{\gamma}_0+
+  2\sum_{k=1}^{20}\left(1-\frac{k}{21}\right)\widehat{\gamma}_k,
   \qquad
-  r^{\mathrm{net}}_{t+1} \;=\; r^{\mathrm{LS}}_{t+1} - \text{turnover}_t \cdot \code{cost\_bps}.
+  t_{NW}=\frac{\overline{\RankIC}}{\sqrt{\widehat{\Omega}/T}}.
 \]
-样本切分严格按日期滚动:\code{train\_end} 之后统一作为样本外区间，\textbf{禁止随机打乱}，以杜绝跨期信息混入。
+朴素 $t$ 值只用于展示重叠造成的膨胀程度，不作为结论依据。
 
-\subsection{LLM 封装与 Agent 闭环}\label{sec:agent}
-LLM 经统一客户端 \code{LLMClient.generate()} 封装，后端可切换（默认 OpenAI 兼容 API，测试用 mock），并对 prompt 做哈希缓存、限制 \code{max\_tokens} 以节省开销。闭环由三个 Agent 串起（算法~\ref{alg:loop}）:\emph{生成} Agent 产出结构化候选因子;\emph{校验} Agent 先过\textbf{确定性规则层}（字段存在、表达式可解析、是否遗漏 \code{delay} 等未来字段引用），再由 LLM 做\emph{语义查重};\emph{反馈} Agent 依据回测摘要建议改写方向。无论哪一步，最终数值一律以确定性回测为准。
-
-模型调参的交付重心不是训练一个直接预测收益的黑箱，而是让“候选因子提案器”更稳定、更合规。当前优先调 prompt 模板、JSON 输出约束、\code{temperature}、\code{max\_tokens} 与规则校验;当积累足够多人工审核样本且格式仍不稳定时，才考虑 LoRA 等参数高效微调。LoRA 在本项目中的目标是学习因子表达风格与结构化输出习惯，而不是替代回测计算 IC 或收益。
-
-\begin{algorithm}[H]
-\caption{生成—校验—回测—反馈闭环（数值均由确定性代码产生）}
-\label{alg:loop}
-\begin{algorithmic}[1]
-\Require 数据面板 \code{panel}、基线因子集 $\mathcal{B}$、迭代上限 $K$
-\Ensure 通过校验并完成样本外回测的因子卡片集合 $\mathcal{C}$
-\State $\mathcal{C} \gets \varnothing$
-\For{$k = 1$ \textbf{to} $K$}
-  \State $F \gets \textsc{GenerateAgent}()$ \Comment{LLM:产出结构化候选因子}
-  \If{\textbf{not} \textsc{RuleCheck}$(F)$} \State \textbf{continue} \Comment{确定性规则层:字段/可解析/防前视}
-  \EndIf
-  \If{\textsc{SemanticDup}$(F, \mathcal{B}\cup\mathcal{C})$} \State \textbf{continue} \Comment{LLM:语义查重}
-  \EndIf
-  \State $m \gets \textsc{Backtest}(F, \code{panel})$ \Comment{\textbf{纯代码}:IC/ICIR/多空/换手}
-  \State $\mathcal{C} \gets \mathcal{C} \cup \{(F, m)\}$;\quad $\mathcal{B} \gets \mathcal{B} \cup \{F\}$
-  \State $\textsc{FeedbackAgent}(m)$ \Comment{LLM:读摘要，建议下一轮改写}
-\EndFor
-\State \Return $\mathcal{C}$
-\end{algorithmic}
-\end{algorithm}
-
-\section{实验:聚源真实数据下的初步实证}\label{sec:exp}
-\paragraph{实验目的与边界。} 本节使用从聚源 JYDB 导出的真实 raw 数据重跑确定性流水线，检验数据契约、防前视合并、表达式求值、样本外回测与报告落盘能否在真实 A 股数据上闭环。由于当前只覆盖 2020--2021 年、股票池为基于行情观测构造的沪深 A 股 price-observed universe，且尚未纳入严格停牌、涨跌停、ST、行业中性化与完整复权处理，本文将结果定位为\emph{初步实证与系统验收}，不把单次运行解释为稳健 alpha 发现。
-
-\paragraph{真实数据接入状态。} 项目已完成聚源 SQL Server 本地接入、脱敏诊断与 JYDB 元数据快照流程，真实账号、密码、主机与库名仅保存在本地忽略文件或环境变量中，不进入代码仓库与论文正文。元数据快照覆盖 2739 张表与 81757 个字段;在此基础上，本文导出三张 raw 表:行情表 \code{prices.pkl} 共 1,904,369 行、4,261 只股票，日期范围为 2020-01-02 至 2021-12-31;财务表 \code{fundamentals.csv} 共 164,881 行、5,705 只股票，公告日范围为 2018-04-04 至 2021-12-31，报告期范围为 2018-03-31 至 2021-09-30，且 \code{(code, report\_period, ann\_date)} 重复键为 0;股票池表 \code{universe.csv} 共 1,904,369 行、4,261 只股票，与行情日期范围一致。经 \code{pit\_merge} 对齐后的面板共 1,904,369 行、18 列，其中 \code{mktcap} 非空 1,904,328 行。当前 \code{mktcap} 由 PIT 可见的 \code{shares\_outstanding} 与当日收盘价相乘得到，行情复权因子暂取 \code{adj\_factor=1.0}，相关限制在讨论节中单独列出。
-
-\paragraph{实验设置。} 关键配置集中于 \code{src/config.py}（表~\ref{tab:setup}），所有模块从此处取参，不散落硬编码。
+\subsection{实验口径}
 
 \begin{table}[H]
   \centering
-  \caption{真实数据初步实证的关键配置（集中于 \code{src/config.py}）}
+  \caption{主实验设置}
   \label{tab:setup}
-  \resizebox{\linewidth}{!}{%
   \begin{tabular}{ll}
     \toprule
-    \theadrow 配置项 & 取值 / 说明 \\
+    项目 & 设置 \\
     \midrule
-    数据来源      & 聚源 JYDB raw 表，price-observed 沪深 A 股股票池 \\
-    频率 \code{freq}          & 日频 \\
-    样本内/外划分 & 2020 年用于前期计算与候选形成，2021 年为样本外，禁止随机打乱 \\
-    交易成本 \code{cost\_bps} & 10 bps，以基点计入成本后收益 \\
-    LLM 后端      & mock，仅用于提出候选与阅读摘要;回测中无 LLM 调用 \\
+    市场与频率 & A 股，日频 \\
+    控制组 & 业绩预告增长率区间中点 \\
+    处理组 & 控制组 + 冻结离线文本语义特征（本轮缺失） \\
+    信号可用日 & 披露日后的下一交易日 \\
+    信号持有期 & 60 日主口径；20/40 日邻域 \\
+    收益标签 & 20 日复权前向收益 \\
+    预处理 & 日截面 1\%/99\% 缩尾，市值与行业中性化 \\
+    最小截面 & 30 只股票 \\
+    主要指标 & Rank IC、ICIR、Newey--West $t$、五分组收益 \\
+    结论状态 & 正向 / 负向 / 证据不足 \\
     \bottomrule
-  \end{tabular}%
-  }
+  \end{tabular}
 \end{table}
 
-\paragraph{验证清单。} 端到端验证聚焦三点:
-\begin{enumerate}[leftmargin=2.2em,itemsep=1pt,topsep=2pt]
-  \item \textbf{防前视:} \code{pit\_merge} 不把 $\code{ann\_date}>T$ 的记录并入 $T$ 日面板（对应单测断言）;
-  \item \textbf{字段可得性:} 面板附带 PIT 元数据，校验层与回测层拒绝缺少证明的敏感字段和直接绕过路径;
-  \item \textbf{接口一致:} 基线因子与 LLM 候选因子在统一接口下稳定求值;
-  \item \textbf{可落盘:} 回测、报告与因子汇总可端到端写入 \code{results/}。
-\end{enumerate}
+\section{结果}\label{sec:results}
 
-表~\ref{tab:real-baselines} 先给出五个手工基线因子在 2021 年样本外区间的结果。低波动、流动性换手与价值类基线在本次数据口径下取得正 Rank IC 和正 ICIR;质量 ROE 与 20 日动量方向为负。该结果说明基线模块能够在真实数据上生成有区分度的排序信号，但不构成跨年份稳健性结论。
+\subsection{结构化对照的参数邻域}
 
-\begin{table}[H]
-  \centering
-  \caption{聚源真实 raw 数据下的基线因子样本外结果}
-  \label{tab:real-baselines}
-  \resizebox{\linewidth}{!}{%
-  \begin{tabular}{lccccc}
-    \toprule
-    因子 & Rank IC & ICIR & 换手率 & 成本后多空 & 样本数 \\
-    \midrule
-    \code{baseline\_low\_volatility\_20d} & 0.0795 & 0.6035 & 0.2604 & 0.0042 & 960478 \\
-    \code{baseline\_liquidity\_turnover} & 0.0662 & 0.5046 & 0.8799 & 0.0031 & 966784 \\
-    \code{baseline\_value\_ep\_bp} & 0.0356 & 0.2967 & 0.1030 & 0.0029 & 958573 \\
-    \code{baseline\_quality\_roe} & -0.0179 & -0.1736 & 0.0721 & -0.0033 & 958677 \\
-    \code{baseline\_momentum\_20d} & -0.0305 & -0.2142 & 0.6799 & -0.0017 & 960478 \\
-    \bottomrule
-  \end{tabular}%
-  }
-\end{table}
+\input{../results/paper_update/final/tables.tex}
 
-表~\ref{tab:real-agent-factors} 给出两只 mock 生成候选因子经同一闭环后的样本外结果。两者的 Rank IC 与 ICIR 均为负，成本后多空收益也未通过正向证据门槛;其中 \code{llm\_mock\_value\_profit\_blend} 与既有基线最大绝对相关性达到 0.8949，说明其新颖性不足。换言之，真实数据运行并没有把 LLM 候选因子“自动包装成成功案例”，而是通过确定性评价给出了可拒绝的负结果。
-
-\begin{table}[H]
-  \centering
-  \caption{聚源真实 raw 数据下的候选因子闭环结果}
-  \label{tab:real-agent-factors}
-  \resizebox{\linewidth}{!}{%
-  \begin{tabular}{lccccc}
-    \toprule
-    候选因子 & Rank IC & ICIR & 换手率 & 成本后多空 & 基线相关性 \\
-    \midrule
-    \code{llm\_mock\_value\_profit\_blend} & -0.0045 & -0.0536 & 0.0892 & -0.0021 & 0.8949 \\
-    \code{llm\_mock\_cashflow\_quality} & -0.0043 & -0.0677 & 0.1187 & -0.0006 & 0.3653 \\
-    \bottomrule
-  \end{tabular}%
-  }
-\end{table}
-
-图~\ref{fig:report} 展示候选因子回测报告产物的一个例子，用于确认报告管线、图表导出与目录组织正确。
+表~\ref{tab:hold-neighborhood} 与图~\ref{fig:hold-neighborhood} 显示，完整中性化后的平均 Rank IC 随持有期从 20 日的 0.0134 提升到 60 日的 0.0278。20 日口径的 Newey--West $t$ 只有 0.91，40 日为 1.96，60 日为 2.56。该邻域没有出现单一窄尖峰，但它是全时段描述性结果，不能替代最终年度测试。
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.9\linewidth]{../results/reports/llm_mock_value_profit_blend/summary.png}
-  \caption{单个候选因子（\code{llm\_mock\_value\_profit\_blend}）的真实数据回测报告示例。图表由 \code{report.py} 自动导出，数值来自确定性回测流水线。}
-  \label{fig:report}
+  \includegraphics[width=0.78\linewidth]{../results/paper_update/final/figures/hold_neighborhood.png}
+  \caption{完整中性化结构化因子在 20/40/60 日持有邻域的平均 Rank IC。数值由确定性结果文件直接生成。}
+  \label{fig:hold-neighborhood}
 \end{figure}
 
-\section{可复现性声明}
-全流程可在聚源 raw 数据落地后由确定性脚本复现。核心防线由 pytest 守护，尤以防前视核心测试 \code{test\_align.py} 为要:
-\begin{verbatim}
-pytest                        # run all unit tests
-pytest tests/test_align.py -v # no-look-ahead and PIT metadata tests
-pytest tests/test_backtest.py -v # direct backtest bypass rejection
-python scripts/paper_update_round.py --run-pipeline
-\end{verbatim}
-\code{tests/test\_align.py} 覆盖未来公告排除、PIT 元数据附着、缺失元数据拒绝与推导市值来源记录;\code{tests/test\_backtest.py} 覆盖直接调用回测时绕过校验层的拒绝。原始表位于 \code{data/raw/prices.pkl}、\code{data/raw/fundamentals.csv} 与 \code{data/raw/universe.csv};结果摘要与论文表格由 \code{scripts/paper\_update\_round.py} 生成并落盘于 \code{results/paper\_update/latest/}，回测报告与图表落盘于 \code{results/reports/}。所有数值均由上述确定性代码产生，LLM 不进入回测过程;连接配置与凭据不写入论文正文。
+\subsection{复权与中性化的影响}
 
-\section{讨论、局限与后续工作}
-\paragraph{价值定位。} 当前版本的价值在于把\textbf{可信底座}推进到真实聚源数据上，而非宣称已发现稳定 alpha。实验表明:程序链路正确、接口稳定、防前视与样本外约束有效;同时，候选因子若缺乏样本外表现或与基线过度重合，会被确定性评价明确拒绝。
+表~\ref{tab:ablation} 与图~\ref{fig:ablation} 给出 60 日口径的四档修正。复权使 Rank IC 从 0.0448 上升至 0.0501；仅做市值中性化后为 0.0490；进一步加入行业中性化后降至 0.0278。行业中性化带来约 0.0212 的 IC 降幅，说明原始信号相当一部分与行业构成相关。完整口径仍有正的全样本 IC，但不能把中性化前的更高数字当作纯粹个股选择能力。
 
-\paragraph{有效性威胁（threats to validity）。} (i) \emph{外部有效性}:当前只覆盖 2021 年一个样本外年度，且股票池为 price-observed 沪深 A 股，并非官方指数成分或严格可交易股票池;(ii) \emph{构造有效性}:暂未加入 ST、停牌、涨跌停、冲击成本、行业/市值中性化等更严格交易约束，\code{adj\_factor} 目前取 1.0，\code{mktcap} 由 PIT 可见股本与收盘价近似;(iii) \emph{数据源假设}:防前视测试能证明本项目的 \code{pit\_merge} 与字段元数据校验路径不会主动引入未来公告记录，但无法单靠单元测试证明供应商 \code{ann\_date} 一定真实、财务内容未混入事后修订、复权字段已完整反映公司行为;(iv) \emph{设计取舍}:LLM 仅“提想法/读结果”，因子优劣不由其裁定——这一保守设计牺牲了自动化程度，换取对数值幻觉与回测泄漏的最大抑制。
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.82\linewidth]{../results/paper_update/final/figures/ablation_60d.png}
+  \caption{60 日结构化对照因子的复权与中性化消融。}
+  \label{fig:ablation}
+\end{figure}
 
-\paragraph{后续工作。} 下一阶段的三项主线:(1) 用官方成分股、ST/停牌/涨跌停过滤与完整复权字段替换当前简化口径;(2) 引入更严格的稳健性检验，包括多期滚动、分年度、行业与市值中性化后的稳定性;(3) 在缓存、\code{max\_tokens} 与审计日志约束下接入真实 LLM 后端，扩大候选生成空间，同时保持回测完全确定性。
+\subsection{年度稳定性与封存测试}
+
+图~\ref{fig:yearly} 是本文最关键的结果。完整中性化、60 日持有口径在 2019 年和 2020 年的年度 Rank IC 分别为 0.0490 和 0.0467，但 2021 年降至 \TestIC。也就是说，全样本 \FullICSixty 的正 IC 主要来自训练和验证阶段，最终年度没有延续。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../results/paper_update/final/figures/yearly_ic.png}
+  \caption{60 日完整中性化结构化因子的分年度 Rank IC。2021 年为最终测试年度。}
+  \label{fig:yearly}
+\end{figure}
+
+这一结果不支持“结构化预告幅度在 2021 年仍有稳定 Alpha”的强结论。它可能反映市场状态变化、事件样本构成变化、信号衰减或开发期偶然性；仅凭三年数据无法区分这些解释。更重要的是，处理组尚未形成，因此不能从结构化因子的失效推导“文本一定有效”。
+
+\subsection{五分组收益}
+
+60 日完整中性化信号的五分组平均 20 日前向收益为：Q1 1.52\%、Q2 1.63\%、Q3 2.24\%、Q4 2.16\%、Q5 2.38\%，Q5--Q1 差约 0.86 个百分点。图~\ref{fig:quantiles} 显示总体从低组向高组上升，但 Q3 高于 Q4，并非严格单调。由于持有窗口重叠、尚未构造真实换手与交易成本序列，本文不把该差值解释为可直接交易的成本后收益。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../results/paper_update/final/figures/quantile_returns.png}
+  \caption{60 日完整中性化信号的五分组平均 20 日前向收益。}
+  \label{fig:quantiles}
+\end{figure}
+
+\subsection{候选漏斗与主问题裁决}
+
+本次记录保留三个代表性候选：结构化预告幅度对照通过确定性校验并完成回测；把未来收益当作当期输入的候选被规则层拒绝；文本增量候选因缺少冻结、可复现的语义特征缓存而不可回测。漏斗为“记录 3 个—通过 1 个—拒绝 1 个—证据不可用 1 个”。
+
+\begin{table}[H]
+  \centering
+  \caption{候选漏斗与裁决理由}
+  \label{tab:funnel}
+  \begin{tabular}{p{3.3cm}p{2.2cm}p{7.7cm}}
+    \toprule
+    候选 & 状态 & 裁决理由 \\
+    \midrule
+    结构化预告幅度 & 通过 & 字段、PIT 生效日、复权收益与中性化证据齐全，完成确定性回测。 \\
+    未来收益反推方向 & 拒绝 & 未来收益只能作为标签，不能成为 $T$ 日因子输入。 \\
+    公告文本增量 & 不可用 & 原文已落地，但冻结模型、提示模板、哈希缓存和可复现语义特征缺失。 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+因此，主问题“文本是否在结构化字段之外提供增量 Alpha”在本轮的唯一合规结论是：
+\[
+  \boxed{\text{insufficient evidence（证据不足）}}
+\]
+这不是统计意义上的“接受零假设”。它表示处理组尚未被合法构造，增量 IC 不能计算。任何正向或负向文本结论都超出了现有证据。
+
+\section{讨论}\label{sec:discussion}
+
+\subsection{结果如何理解}
+
+结构化预告幅度在 2019--2020 年有较强横截面排序能力，但行业中性化明显削弱信号，且 2021 年转为轻微负值。一个保守解释是：管理层披露的增长幅度在开发期包含信息，但其有效性依赖行业与市场状态，不能视为稳定、跨期的个股 Alpha。本文没有足够证据判断失效来自定价效率提升、样本结构变化还是信号定义本身。
+
+文本处理组缺失也暴露了 LLM 金融研究的关键难点：原始文本“存在”不等于特征“可回测”。可复现的文本因子至少需要固定输入文本、固定模型与提示、输出模式、内容哈希、缓存命中、失败记录和离线重放。否则模型版本漂移或重复 API 调用会让同一公告在不同时间得到不同特征，回测便无法审计。
+
+\subsection{方法论价值}
+
+系统最重要的产出不是某个高 IC 数字，而是三种拒绝能力：
+\begin{enumerate}[leftmargin=2.2em,itemsep=1pt,topsep=2pt]
+  \item 拒绝未来字段进入因子；
+  \item 拒绝用朴素显著性掩盖重叠样本相关；
+  \item 拒绝在处理组缺证据时给出想要的结论。
+\end{enumerate}
+这使“解释”成为因子出生时的结构化假说，而不是看到结果后补写的故事。LLM 可以扩大语义搜索空间，但不能改变数值裁决。
+
+\subsection{与既有工作的关系}
+
+已有 LLM 量化系统往往强调自动生成和策略收益\cite{kou2025}。本文选择更窄的职责分割：生成器可以提出文本语义假说，但代码生成和结果裁决不交给模型。与 AlphaFormer 等符号回归工作\cite{alphaformer2026}相比，本文不追求端到端最优，而是强调每个字段的可得日、每个实验阶段的不可逆性与每个数字的产物来源。两类路线并不冲突：强搜索器可以作为候选来源，但必须服从同一确定性证据链。
+
+\section{有效性威胁与局限}\label{sec:limitations}
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=3pt,topsep=2pt]
+  \item \textbf{文本处理组尚未完成。} 原始公告正文虽已导出，但没有冻结、可复现的语义特征缓存，本文无法真正计算增量 IC。这是主结论停在“证据不足”的直接原因。
+  \item \textbf{事件期较短。} 可用结构化事件只覆盖 2019 年 6 月至 2021 年末，训练期不足一年，测试期只有一个自然年，统计功效和市场状态覆盖有限。
+  \item \textbf{参数邻域包含全时段描述。} 20/40/60 日 JSON 文件均报告 2019--2021 年总体指标及年度拆分，因此总体邻域只能作为事后稳健性描述，不能当作完全未见测试集的调参证据。论文把 2021 年年度值单独作为最终评价，并披露这一限制。
+  \item \textbf{研究记录不是第三方预注册。} 不可逆状态机能阻止软件内回退，但本次离线 run record 在结果文件之后生成，缺少外部时间戳，不能独立证明研究者从未提前查看测试结果。
+  \item \textbf{交易可实施性不足。} 当前事件脚本未完整加入 ST、停牌、涨跌停、成交容量、冲击成本和组合换手，五分组差不能直接解释为可交易收益。
+  \item \textbf{供应商与复权假设。} 单元测试可以证明本项目代码不主动读取未来公告，却不能单独证明供应商日期无误、公告正文未被事后修订或复权序列不存在事后信息。
+  \item \textbf{显著性口径有限。} 本文使用滞后 20 阶的 Newey--West 修正处理重叠收益，但未做事件聚类、公司聚类、多重检验或更广泛的自助法检验。
+  \item \textbf{样本选择。} 需要增长率上下界的事件才能进入结构化对照，这会排除只披露利润额或定性预告的公司，可能产生覆盖选择偏差。
+\end{enumerate}
+
+\section{后续工作}
+
+第一，构建可复现的文本语义缓存：以公告正文哈希为键，冻结模型、提示词与输出 schema，记录失败和重试，确保回测完全离线。第二，在新合同中预注册文本特征、结构化控制、增量定义和显著性检验，并由外部时间戳封存 2021 或更新年份的测试证据。第三，扩展事件历史与滚动样本外窗口，加入行业、规模、预告类型和市场状态分层。第四，补充可交易性过滤、换手与成本模型。第五，在多候选生成时使用固定验证预算和多重检验修正，避免自动化 p-hacking。
 
 \section{结论}
-本文给出可解释 Alpha 因子生成智能体的初版实现与聚源真实数据下的初步实证。系统在\emph{数据层}以条件化、可测试的点时间对齐防止 look-ahead，在\emph{方法层}以受限表达式引擎与纯代码回测保证可审计，在\emph{交互层}以 LLM 封装与三 Agent 闭环提升探索效率——同时以铁律确保回测绝不触碰 LLM。最新实验已完成 JYDB 三张 raw 表导出、真实数据面板构建与 2021 年样本外回测:部分基线因子取得正向样本外表现，而 mock 候选因子未通过收益与新颖性检验。这一结果并不宣称发现稳定 alpha，却证明系统已经能够在真实数据上诚实地产生、检验并拒绝候选因子。我们相信，\emph{先地基、后生成}的路线，是让“LLM 生成因子”这件事从“看起来聪明”走向“可被相信”的必要一步。
+
+本文没有把“LLM 能生成因子”当作答案，而是把它改写成一个有控制组、处理组和终局状态的增量检验。系统将 LLM 限定在假说与解释空间，将所有数值交给确定性代码，并通过点时间可得性、白名单表达式、Newey--West 修正、日期有序切分和不可逆测试闸门建立证据链。
+
+真实数据结果显示，结构化业绩预告幅度在 2019--2020 年具有正向 Rank IC，但在 2021 年测试段降至 $-0.0049$；行业中性化也显著削弱信号。公告文本原文已经存在，但冻结、可复现的语义特征处理组尚未形成，因此本文不能回答文本增量为正还是为负，最终结论是“证据不足”。
+
+这一结果并非项目失败。相反，一个可信的因子智能体必须有能力说“不知道”，并能指出缺少哪一条证据。本文证明的不是某个稳定 Alpha，而是一套让 LLM 提出假说、让代码做出裁决、让每个结论都能追溯到确定性产物的研究方法。
+
+\section*{可复现性与产物映射}
+\addcontentsline{toc}{section}{可复现性与产物映射}
+
+本论文数字由脚本从既有确定性 JSON 结果生成，不重新调用 LLM，也不重新估计因子：
+\begin{verbatim}
+python scripts/build_final_paper_assets.py
+cd paper && latexmk -xelatex -interaction=nonstopmode main.tex
+\end{verbatim}
+
+关键产物如下：
+\begin{longtable}{p{5.0cm}p{8.4cm}}
+  \toprule
+  产物 & 用途 \\
+  \midrule
+  \raggedright\path{results/workflow/forecast_hold_20.json}（另含 40/60 日） & 参数邻域、消融、年度 IC、Newey--West $t$ 与五分组收益的确定性来源。 \\
+  \raggedright\path{results/workflow/research_run_record.json} & 冻结合同、候选漏斗、验证预算、测试拆封与终局状态。 \\
+  \raggedright\path{results/paper_update/final/manifest.json} & 论文数据版本、源文件 SHA-256、输出清单与数值不经 LLM 的声明。 \\
+  \raggedright\path{results/paper_update/final/} 下的 CSV & 论文表格的机器可读版本。 \\
+  \raggedright\path{results/paper_update/final/figures/} & 从 CSV/JSON 同源生成的论文图。 \\
+  \bottomrule
+\end{longtable}
 
 \addcontentsline{toc}{section}{参考文献}
 \begin{thebibliography}{99}
+  \bibitem{fama1973}
+  Fama, E. F., \& MacBeth, J. D. (1973).
+  Risk, return, and equilibrium: Empirical tests.
+  \emph{Journal of Political Economy}, 81(3), 607--636.
+  doi:10.1086/260061.
+
+  \bibitem{newey1987}
+  Newey, W. K., \& West, K. D. (1987).
+  A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix.
+  \emph{Econometrica}, 55(3), 703--708.
+  doi:10.2307/1913610.
+
   \bibitem{mclean2016}
-  McLean, R. D., \& Pontiff, J. (2016). Does academic research destroy stock return predictability? \emph{Journal of Finance}, 71(1), 5--32.
+  McLean, R. D., \& Pontiff, J. (2016).
+  Does academic research destroy stock return predictability?
+  \emph{The Journal of Finance}, 71(1), 5--32.
+  doi:10.1111/jofi.12365.
 
   \bibitem{gkx2020}
-  Gu, S., Kelly, B., \& Xiu, D. (2020). Empirical asset pricing via machine learning. \emph{Review of Financial Studies}, 33(5), 2223--2273.
+  Gu, S., Kelly, B., \& Xiu, D. (2020).
+  Empirical asset pricing via machine learning.
+  \emph{The Review of Financial Studies}, 33(5), 2223--2273.
+  doi:10.1093/rfs/hhaa009.
 
   \bibitem{kou2025}
-  Kou, Z., et al. (2025). Automate Strategy Finding with LLM in Quant Investment. \emph{Findings of EMNLP}.
+  Kou, Z., Yu, H., Luo, J., Peng, J., Li, X., Liu, C., Dai, J., Chen, L., Han, S., \& Guo, Y. (2025).
+  Automate strategy finding with LLM in quant investment.
+  \emph{Findings of the Association for Computational Linguistics: EMNLP 2025}, 18517--18533.
+  doi:10.18653/v1/2025.findings-emnlp.1005.
 
   \bibitem{alphaformer2026}
-  Huang, Y., et al. (2026). AlphaFormer: End-to-End Symbolic Regression of Alpha Factors with Transformers. \emph{Proceedings of Machine Learning Research (PMLR)}.
+  Huang, H., Peng, J., Ding, Z., Li, P., \& Chen, T. (2026).
+  AlphaFormer: End-to-end symbolic regression of alpha factors with Transformers.
+  \emph{Proceedings of Machine Learning Research}, 328, 61--82.
 \end{thebibliography}
 
 \end{document}

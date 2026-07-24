@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0",
+  "paper_version": "1.0.0724.1",
+  "paper_data_version": "2026-07-24-final",
+  "run_id": "run-forecast-increment-20260724-01",
+  "record_digest": "ae122adafaf7066170cdf3be8a0f371a8478bfc319d11f88ad75c4289e02a0f1",
+  "generated_from_deterministic_results": true,
+  "llm_used_for_numeric_fields": false,
+  "conclusion": "insufficient_evidence",
+  "reason": "Raw announcement text exists, but the frozen reproducible semantic-feature cache required for the treatment arm is missing.",
+  "data_summary": [
+    {
+      "dataset": "forecast_raw",
+      "rows": 39294,
+      "entities": 4090,
+      "date_min": "2019-06-03",
+      "date_max": "2021-12-31"
+    },
+    {
+      "dataset": "usable_structured_events",
+      "rows": 13283,
+      "entities": "",
+      "date_min": "2019-06-03",
+      "date_max": "2021-12-30"
+    },
+    {
+      "dataset": "pit_panel",
+      "rows": 5809082,
+      "entities": 4289,
+      "date_min": "2015-01-05",
+      "date_max": "2021-12-31"
+    }
+  ],
+  "sources": [
+    {
+      "path": "results/workflow/forecast_hold_20.json",
+      "sha256": "4a1d7a4c850130e6468e8cfda065d61d71f4f2654145067cb0b1f8f4d0d55b36"
+    },
+    {
+      "path": "results/workflow/forecast_hold_40.json",
+      "sha256": "c7e63568a4ee68f877d010a196921411f9d262fbc726eb7720c997d9f2444ef9"
+    },
+    {
+      "path": "results/workflow/forecast_hold_60.json",
+      "sha256": "5c7261eb5450504cd9077613803efc9364855f6b759f9381c5796b29fae0c91e"
+    },
+    {
+      "path": "results/workflow/research_run_record.json",
+      "sha256": "f4927aa8e9b705e04dad9c1ced296750c1779fc3bf27b61748a1c95bdde5e34e"
+    }
+  ],
+  "outputs": [
+    "results/paper_update/final/ablation_60d.csv",
+    "results/paper_update/final/candidate_funnel.csv",
+    "results/paper_update/final/data_summary.csv",
+    "results/paper_update/final/figures/ablation_60d.png",
+    "results/paper_update/final/figures/hold_neighborhood.png",
+    "results/paper_update/final/figures/quantile_returns.png",
+    "results/paper_update/final/figures/yearly_ic.png",
+    "results/paper_update/final/holding_neighborhood.csv",
+    "results/paper_update/final/macros.tex",
+    "results/paper_update/final/quantile_60d.csv",
+    "results/paper_update/final/tables.tex",
+    "results/paper_update/final/yearly_60d.csv"
+  ]
+}
