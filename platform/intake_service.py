@@ -413,10 +413,77 @@ def _submitter_from_body(body: str) -> str:
     return _clean_text(match.group(1), MAX["submitter"]) if match else ""
 
 
+def _description_from_body(body: str) -> str:
+    """正文分隔线后才是用户原始描述,前面的表单字段不拿来冒充反馈质量。"""
+    match = re.search(r"\n---\n\n(.+?)(?:\n\n_经想法流工单入口于 |\Z)", str(body or ""), re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
+def _feedback_quality(body: str, labels: list[str], receipt: dict | None = None) -> dict:
+    """用可解释规则给反馈质量打粗粒度标签;不调用 LLM,也不输出敏感正文。"""
+    description = _description_from_body(body)
+    has_attachment = "**附件链接:**" in body
+    has_screenshot = "**截图:**" in body
+    has_related = "**关联工单:**" in body
+    has_type = any(label in TYPE_LABELS.values() for label in labels)
+    has_priority = any(str(label).startswith("P:") for label in labels)
+    needs_review = REVIEW_LABEL in labels or f"**{REVIEW_LABEL}:**" in body
+
+    score = 20
+    signals: list[str] = []
+    if len(description) >= 160:
+        score += 28
+        signals.append("描述充分")
+    elif len(description) >= 60:
+        score += 20
+        signals.append("描述清楚")
+    elif description:
+        score += 8
+        signals.append("描述偏短")
+
+    if has_screenshot or has_attachment:
+        score += 18
+        signals.append("有证据材料")
+    if has_related:
+        score += 10
+        signals.append("有关联工单")
+    if has_type and has_priority:
+        score += 12
+        signals.append("分类完整")
+    elif has_type or has_priority:
+        score += 6
+        signals.append("分类部分完整")
+    if needs_review:
+        score += 8
+        signals.append("主动标记待审核")
+    if receipt and receipt.get("summary"):
+        score += 8
+        signals.append("已有项目回复")
+
+    score = min(score, 100)
+    if score >= 76:
+        level = "high"
+        label = "高质量"
+    elif score >= 52:
+        level = "medium"
+        label = "可处理"
+    else:
+        level = "low"
+        label = "待补充"
+
+    return {
+        "score": score,
+        "level": level,
+        "label": label,
+        "signals": signals[:4],
+    }
+
+
 def _compact_issue(item: dict, receipt: dict | None = None) -> dict:
     milestone = item.get("milestone") or {}
     labels = [label.get("name") for label in item.get("labels", []) if label.get("name")]
     body = str(item.get("body") or "")
+    needs_review = REVIEW_LABEL in labels or f"**{REVIEW_LABEL}:**" in body
     return {
         "number": item.get("number"),
         "title": str(item.get("title") or "").removeprefix("[反馈] "),
@@ -429,7 +496,8 @@ def _compact_issue(item: dict, receipt: dict | None = None) -> dict:
         "milestone": milestone.get("title") if isinstance(milestone, dict) else None,
         "submitter": _submitter_from_body(body),
         # 标签可能被摘掉,正文那行不会 —— 两边任一成立就算待审核
-        "needs_review": REVIEW_LABEL in labels or f"**{REVIEW_LABEL}:**" in body,
+        "needs_review": needs_review,
+        "quality": _feedback_quality(body, labels, receipt),
         "receipt": receipt,
     }
 

@@ -101,6 +101,49 @@ def test_compact_issue_exposes_submitter_and_review_flag_for_filtering():
     assert intake_service._compact_issue({"number": 9, "body": ""})["submitter"] == ""
 
 
+def test_compact_issue_includes_deterministic_feedback_quality():
+    body = (
+        "**提交人:** 阿祖\n"
+        "**类型:** 缺陷　**优先级:** 高\n"
+        "**关联工单:** #12\n"
+        "**截图:** bug.png\n"
+        "![截图](https://example.test/bug.png)\n\n"
+        "---\n\n"
+        "在事件研究页切换到近一年后,K 线标记会消失。复现步骤是先选择格力电器,再切换区间,最后刷新历史工单。"
+        "期望结果是披露日标记仍留在 K 线上,实际结果是右侧统计还在但图上的金色点没了,截图里圈出了消失前后的状态。"
+    )
+    compact = intake_service._compact_issue(
+        {
+            "number": 10,
+            "title": "[反馈] 事件标记消失",
+            "state": "open",
+            "labels": [{"name": "intake"}, {"name": "缺陷"}, {"name": "P:高"}],
+            "body": body,
+        }
+    )
+
+    assert compact["quality"]["level"] == "high"
+    assert compact["quality"]["label"] == "高质量"
+    assert compact["quality"]["score"] >= 76
+    assert "有证据材料" in compact["quality"]["signals"]
+    assert "有关联工单" in compact["quality"]["signals"]
+
+
+def test_feedback_quality_marks_short_unclassified_issue_as_needing_detail():
+    compact = intake_service._compact_issue(
+        {
+            "number": 11,
+            "title": "[反馈] 看不了",
+            "state": "open",
+            "labels": [{"name": "intake"}],
+            "body": "**提交人:** 阿祖\n\n---\n\n坏了",
+        }
+    )
+
+    assert compact["quality"]["level"] == "low"
+    assert compact["quality"]["label"] == "待补充"
+
+
 def test_build_receipt_formats_github_comment_and_parses_close_issue():
     receipt = intake_service.build_receipt(
         {

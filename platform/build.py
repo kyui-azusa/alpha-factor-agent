@@ -448,6 +448,7 @@ def render_form() -> str:
       </div>
       <button type="button" class="icon-btn" data-issues-refresh aria-label="刷新历史工单" title="刷新历史工单">↻</button>
     </div>
+    <div class="contribution-panel" hidden data-contribution-panel></div>
     <div class="filters" hidden data-issue-filters>
       <select data-filter-state aria-label="按状态筛选">
         <option value="">全部状态</option>
@@ -945,6 +946,7 @@ if (form) {
   var issuesMore = document.querySelector('[data-issues-more]');
   var issueEmpty = document.querySelector('[data-issue-empty]');
   var issueFilters = document.querySelector('[data-issue-filters]');
+  var contributionPanel = document.querySelector('[data-contribution-panel]');
   var filterState = document.querySelector('[data-filter-state]');
   var filterType = document.querySelector('[data-filter-type]');
   var filterSubmitter = document.querySelector('[data-filter-submitter]');
@@ -973,6 +975,116 @@ if (form) {
     } catch (_) {
       return value;
     }
+  }
+
+  function dateKey(value) {
+    var d = new Date(value || '');
+    if (!isFinite(d.getTime())) return '';
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  function addDays(key, offset) {
+    var d = key ? new Date(key + 'T00:00:00') : new Date();
+    d.setDate(d.getDate() + offset);
+    return dateKey(d);
+  }
+
+  function shortDay(key) {
+    if (!key) return '';
+    return key.slice(5).replace('-', '/');
+  }
+
+  function qualityOf(item) {
+    var q = item && item.quality ? item.quality : {};
+    return {
+      score: Math.max(0, Math.min(100, Number(q.score) || 0)),
+      level: q.level === 'high' || q.level === 'medium' || q.level === 'low' ? q.level : 'low',
+      label: q.label || '待补充'
+    };
+  }
+
+  function heatLevel(count, max) {
+    if (!count || !max) return 0;
+    if (count >= max) return 4;
+    if (count / max >= 0.66) return 3;
+    if (count / max >= 0.34) return 2;
+    return 1;
+  }
+
+  function renderContributions(items) {
+    if (!contributionPanel) return;
+    if (!items || !items.length) {
+      contributionPanel.hidden = true;
+      contributionPanel.innerHTML = '';
+      return;
+    }
+    var end = items.map(function (item) { return dateKey(item.created_at); }).filter(Boolean).sort().pop() || dateKey(new Date().toISOString());
+    var days = [];
+    for (var i = 13; i >= 0; i -= 1) days.push(addDays(end, -i));
+
+    var people = {};
+    var qualityCounts = { high: 0, medium: 0, low: 0 };
+    var scoreSum = 0;
+    var replied = 0;
+    var maxCell = 0;
+    items.forEach(function (item) {
+      var name = item.submitter || '未署名';
+      var day = dateKey(item.created_at);
+      var q = qualityOf(item);
+      if (!people[name]) people[name] = { name: name, count: 0, score: 0, high: 0, medium: 0, low: 0, days: {} };
+      people[name].count += 1;
+      people[name].score += q.score;
+      people[name][q.level] += 1;
+      if (day) {
+        people[name].days[day] = (people[name].days[day] || 0) + 1;
+        if (people[name].days[day] > maxCell) maxCell = people[name].days[day];
+      }
+      qualityCounts[q.level] += 1;
+      scoreSum += q.score;
+      if (item.receipt && item.receipt.summary) replied += 1;
+    });
+
+    var contributors = Object.keys(people).map(function (name) { return people[name]; })
+      .sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+    var avg = Math.round(scoreSum / Math.max(items.length, 1));
+    var top = contributors.slice(0, 6).map(function (p) {
+      var avgScore = Math.round(p.score / Math.max(p.count, 1));
+      return '<div class="contributor-card">'
+        + '<strong>' + escapeHtml(p.name) + '</strong>'
+        + '<span><b>' + p.count + '</b> 单 · 均分 ' + avgScore + '</span>'
+        + '<em>高质量 ' + p.high + ' / 可处理 ' + p.medium + ' / 待补充 ' + p.low + '</em>'
+        + '</div>';
+    }).join('');
+    var rows = contributors.map(function (p) {
+      var cells = days.map(function (day) {
+        var count = p.days[day] || 0;
+        return '<i class="heat-cell l' + heatLevel(count, maxCell) + '" title="'
+          + escapeHtml(p.name + ' · ' + day + ' · ' + count + ' 单') + '"></i>';
+      }).join('');
+      return '<div class="heat-row"><span>' + escapeHtml(p.name) + '</span><div>' + cells + '</div></div>';
+    }).join('');
+    var quality = ['high', 'medium', 'low'].map(function (level) {
+      var label = level === 'high' ? '高质量' : (level === 'medium' ? '可处理' : '待补充');
+      var pct = Math.round(qualityCounts[level] / Math.max(items.length, 1) * 100);
+      return '<div class="quality-bar ' + level + '"><span>' + label + '</span><i><b style="width:' + pct + '%"></b></i><strong>' + qualityCounts[level] + '</strong></div>';
+    }).join('');
+
+    contributionPanel.innerHTML = '<div class="contribution-head">'
+      + '<div><span class="eyebrow">贡献图</span><h4>提交分布与反馈质量</h4></div>'
+      + '<div class="contribution-kpis">'
+      + '<span><b>' + items.length + '</b>工单</span>'
+      + '<span><b>' + contributors.length + '</b>人</span>'
+      + '<span><b>' + avg + '</b>质量均分</span>'
+      + '<span><b>' + replied + '</b>已回复</span>'
+      + '</div></div>'
+      + '<div class="contribution-body">'
+      + '<div class="heatmap"><div class="heat-days">' + days.map(function (day) { return '<span>' + shortDay(day) + '</span>'; }).join('') + '</div>' + rows + '</div>'
+      + '<div class="quality-summary">' + quality + '</div>'
+      + '</div>'
+      + '<div class="contributor-grid">' + top + '</div>';
+    contributionPanel.hidden = false;
   }
 
   // 关联工单:新工单可以指着老工单说话。只往输入框里塞号码,不做站内回复层级 ——
@@ -1052,6 +1164,9 @@ if (form) {
         labels += '<span class="mini-label review">' + REVIEW_LABEL + '</span>';
       }
       if (item.milestone) labels += '<span class="mini-label milestone">' + escapeHtml(item.milestone) + '</span>';
+      if (item.quality && item.quality.label) {
+        labels += '<span class="mini-label quality ' + escapeHtml(item.quality.level || 'low') + '">' + escapeHtml(item.quality.label) + '</span>';
+      }
       // 回复是这块最有价值的内容,给它独立的答复块而不是挤在一行里截断
       var reply = '';
       if (item.receipt && item.receipt.summary) {
@@ -1076,6 +1191,7 @@ if (form) {
         + '<button type="button" class="cite-btn" data-cite="' + escapeHtml(item.number) + '" title="在新工单里引用 #' + escapeHtml(item.number) + '">引用</button></span>'
         + '</div>';
     }).join('');
+    renderContributions(items);
     fillSubmitters(items);
     if (issueFilters) issueFilters.hidden = false;
     applyIssueView();
@@ -1145,6 +1261,7 @@ if (form) {
     if (issuesMore) issuesMore.hidden = true;
     if (issueEmpty) issueEmpty.hidden = true;
     if (issueFilters) issueFilters.hidden = true;
+    if (contributionPanel) contributionPanel.hidden = true;
     fetch('/api/intake/issues')
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
